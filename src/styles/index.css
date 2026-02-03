@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  --font-tech: 'Orbitron', 'Noto Sans KR', sans-serif;
+}
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 10px;
+}
+
+canvas {
+  background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+  box-shadow: 0 0 40px rgba(239, 68, 68, 0.15);
+}
+
+/* Animation Utilities that might not be in standard utility set yet or need explicit definition if JIT misses them */
+@keyframes scanline {
+  0% {
+    transform: translateY(-100%);
+  }
+
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
