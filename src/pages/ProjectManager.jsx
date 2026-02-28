@@ -266,6 +266,7 @@ function createInitialDeploySteps() {
     stepKey,
     label: DEPLOY_STEP_LABELS[stepKey] || stepKey,
     status: 'pending',
+    resultLabel: '',
   }));
 }
 
@@ -1160,8 +1161,29 @@ export default function ProjectManager() {
 
         const exitCode = Number(eventPayload?.exitCode);
         const timedOut = Boolean(eventPayload?.timedOut);
+        if (stepKey === 'git-diff' && !timedOut) {
+          if (exitCode === 0) {
+            setDeploySteps((prev) => upsertDeployStep(prev, stepKey, () => ({
+              status: 'done',
+              resultLabel: '변경 없음',
+            })));
+            return;
+          }
+
+          if (exitCode === 1) {
+            setDeploySteps((prev) => upsertDeployStep(prev, stepKey, () => ({
+              status: 'done',
+              resultLabel: '변경 있음',
+            })));
+            return;
+          }
+        }
+
         const nextStatus = timedOut ? 'error' : (exitCode === 0 ? 'done' : 'error');
-        setDeploySteps((prev) => upsertDeployStep(prev, stepKey, () => ({ status: nextStatus })));
+        setDeploySteps((prev) => upsertDeployStep(prev, stepKey, () => ({
+          status: nextStatus,
+          resultLabel: '',
+        })));
         return;
       }
 
@@ -1568,7 +1590,9 @@ export default function ProjectManager() {
                 <div key={step.stepKey} className="rounded-xl border border-[#2c4259] bg-[#08111d] px-3 py-2 flex items-center justify-between gap-3">
                   <span className="text-xs text-[#c5d5e6]">{step.label}</span>
                   <span className={`text-[11px] font-semibold ${
-                    step.status === 'done'
+                    (step.resultLabel === '변경 없음')
+                      ? 'text-[#9bc8ff]'
+                      : step.status === 'done'
                       ? 'text-[#98e7b2]'
                       : step.status === 'error'
                         ? 'text-[#ffb3b3]'
@@ -1577,13 +1601,15 @@ export default function ProjectManager() {
                           : 'text-[#7f96ac]'
                   }`}
                   >
-                    {step.status === 'done'
-                      ? '완료'
-                      : step.status === 'error'
-                        ? '실패'
-                        : step.status === 'running'
-                          ? '진행'
-                          : '대기'}
+                    {step.resultLabel || (
+                      step.status === 'done'
+                        ? '완료'
+                        : step.status === 'error'
+                          ? '실패'
+                          : step.status === 'running'
+                            ? '진행'
+                            : '대기'
+                    )}
                   </span>
                 </div>
               ))}

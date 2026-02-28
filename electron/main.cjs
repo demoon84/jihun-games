@@ -1094,6 +1094,20 @@ async function deployProjectToVercel(event, { projectPath, routePath, timeoutMs,
   }
   appendLog('git-diff', diffResult);
 
+  if (diffResult.exitCode === 0) {
+    pushProgress({
+      type: 'status',
+      stepKey: 'git-diff',
+      message: '변경사항이 없습니다. 기존 커밋으로 배포를 계속 진행합니다.',
+    });
+  } else {
+    pushProgress({
+      type: 'status',
+      stepKey: 'git-diff',
+      message: '변경사항이 확인되어 커밋 후 배포를 진행합니다.',
+    });
+  }
+
   let committed = false;
   if (diffResult.exitCode === 1) {
     const commitMessage = `chore: deploy ${path.basename(projectPath)} (${deployRoutePath}) ${new Date().toISOString()}`;

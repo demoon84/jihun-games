@@ -10,6 +10,8 @@
     "dev:desktop-shell": "wait-on tcp:127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
     "desktop": "electron .",
     "build": "vite build",
+    "build:game": "cross-env VITE_APP_TARGET=game vite build",
+    "vercel-build": "npm run build:game",
     "build:desktop": "npm run build",
     "preview": "vite preview"
   },

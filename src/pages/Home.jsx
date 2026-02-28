@@ -121,6 +121,7 @@ function toGameItem(project) {
 
 export default function Home() {
     const [games, setGames] = useState(DEFAULT_GAMES);
+    const showDashboardShortcut = isDesktopApp();
 
     useEffect(() => {
         let isMounted = true;
@@ -198,14 +199,16 @@ export default function Home() {
     return (
         <div data-id="home-container" className="min-h-screen bg-slate-950 text-white p-8 flex flex-col items-center overflow-y-auto">
             <header data-id="home-header" className="mb-12 text-center animate-in fade-in slide-in-from-top-8 duration-700">
-                <div className="flex justify-center mb-6">
-                    <Link
-                        to="/manager"
-                        className="rounded-full border border-white/20 px-5 py-2 text-sm font-bold hover:border-white/60 transition-colors"
-                    >
-                        프로젝트 대시보드로
-                    </Link>
-                </div>
+                {showDashboardShortcut && (
+                    <div className="flex justify-center mb-6">
+                        <Link
+                            to="/manager"
+                            className="rounded-full border border-white/20 px-5 py-2 text-sm font-bold hover:border-white/60 transition-colors"
+                        >
+                            프로젝트 대시보드로
+                        </Link>
+                    </div>
+                )}
                 <h1 data-id="home-title" className="text-5xl md:text-7xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-500 to-red-500 mb-4 drop-shadow-2xl">
                     JIHUN GAMES
                 </h1>
