@@ -192,6 +192,7 @@ function Catcher({ position }) {
             {/* Backward Cap / Helmet Brim */}
             <BaseballCap color="#ef4444" position={[0, 1.1, 0]} rotation={[0, Math.PI, 0]} />
             {/* Mask */}
+            <mesh position={[0, 1.1, -0.24]}>
                 <planeGeometry args={[0.3, 0.3]} />
                 <meshStandardMaterial color="black" wireframe />
             </mesh>

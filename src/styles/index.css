@@ -39,7 +39,7 @@ button:disabled {
 .manager-shell {
   position: relative;
   overflow: hidden;
-  --frame-gap: 12px;
+  --frame-gap: 6px;
 }
 
 .manager-floating-menu {
@@ -163,6 +163,7 @@ button:disabled {
   min-width: 0;
   display: flex;
   align-items: stretch;
+  gap: var(--frame-gap);
 }
 
 .manager-main-split.is-resizing {

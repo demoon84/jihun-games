@@ -24,6 +24,9 @@ import {
 
 const GAMES_ROOT_RELATIVE = 'src/games';
 const PUBLIC_SERVICE_URL = 'https://jhgame.vercel.app';
+const MENU_PANEL_WIDTH_PX = 280;
+const TERMINAL_PANEL_FLEX = 3;
+const BROWSER_PANEL_FLEX = 5;
 const ROUTE_DEFAULT_NAMES = {
   '/defense': '디펜스 기갑 탱크',
   '/zombie': '수비대: 좀비 습격',
@@ -248,9 +251,6 @@ function extractDeployUrl(rawOutput) {
 }
 
 const DEPLOY_STEP_ORDER = ['git-root', 'git-remote', 'git-add', 'git-diff', 'git-commit', 'git-push', 'vercel-deploy'];
-const MIN_SPLIT_RATIO = 0.2;
-const MAX_SPLIT_RATIO = 0.8;
-const MAIN_SPLITTER_PX = 14;
 const DEPLOY_STEP_LABELS = {
   'git-root': '저장소 루트 확인',
   'git-remote': 'origin 확인',
@@ -285,10 +285,6 @@ function trimDeployLog(logText, maxLength = 18000) {
   }
 
   return text.slice(text.length - maxLength);
-}
-
-function clampSplitRatio(value) {
-  return Math.min(MAX_SPLIT_RATIO, Math.max(MIN_SPLIT_RATIO, value));
 }
 
 function resolveProjectPreviewUrl(project) {
@@ -329,15 +325,9 @@ export default function ProjectManager() {
   const [deployUrl, setDeployUrl] = useState('');
   const [deployFinishedOk, setDeployFinishedOk] = useState(null);
   const [browserRefreshTick, setBrowserRefreshTick] = useState(0);
-  const [splitRatio, setSplitRatio] = useState(0.3);
-  const [isSplitResizing, setIsSplitResizing] = useState(false);
-  const [isMenuExpanded, setIsMenuExpanded] = useState(false);
   const [workspaceRootHint, setWorkspaceRootHint] = useState(null);
 
-  const menuPanelRef = useRef(null);
-  const menuToggleRef = useRef(null);
   const terminalHostRef = useRef(null);
-  const splitContainerRef = useRef(null);
   const terminalByProjectRef = useRef(new Map());
 
   const sessionByProjectRef = useRef(new Map());
@@ -345,8 +335,6 @@ export default function ProjectManager() {
   const activeProjectIdRef = useRef(null);
   const syncTerminalSizeRef = useRef(() => {});
   const activeDeployRequestIdRef = useRef(null);
-  const isSplitResizingRef = useRef(false);
-  const pendingTerminalSyncRef = useRef(false);
   const terminalSyncRafRef = useRef(null);
 
   function disposeProjectTerminal(projectId) {
@@ -1010,56 +998,11 @@ export default function ProjectManager() {
     setIsDeployLayerOpen(false);
   }
 
-  function startSplitResize(event) {
-    event.preventDefault();
-    setIsSplitResizing(true);
-  }
-
   function handleOpenPublicService() {
     openExternalUrl(PUBLIC_SERVICE_URL).catch(() => {
       // Ignore open failures to keep UI simple.
     });
   }
-
-  useEffect(() => {
-    if (!isSplitResizing) {
-      return;
-    }
-
-    function handleMouseMove(event) {
-      const container = splitContainerRef.current;
-      if (!container) {
-        return;
-      }
-
-      const rect = container.getBoundingClientRect();
-      if (!rect || rect.width <= 0) {
-        return;
-      }
-
-      const nextRatio = clampSplitRatio((event.clientX - rect.left) / rect.width);
-      setSplitRatio(nextRatio);
-    }
-
-    function stopSplitResize() {
-      setIsSplitResizing(false);
-    }
-
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', stopSplitResize);
-    window.addEventListener('blur', stopSplitResize);
-
-    return () => {
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', stopSplitResize);
-      window.removeEventListener('blur', stopSplitResize);
-    };
-  }, [isSplitResizing]);
 
   useEffect(() => {
     if (!isDesktopApp() || !terminalHostRef.current) {
@@ -1103,22 +1046,12 @@ export default function ProjectManager() {
     });
 
     function syncTerminalSize() {
-      if (isSplitResizingRef.current) {
-        pendingTerminalSyncRef.current = true;
-        return;
-      }
-
       if (terminalSyncRafRef.current != null) {
         return;
       }
 
       terminalSyncRafRef.current = window.requestAnimationFrame(() => {
         terminalSyncRafRef.current = null;
-        if (isSplitResizingRef.current) {
-          pendingTerminalSyncRef.current = true;
-          return;
-        }
-
         const activeProjectId = activeProjectIdRef.current;
         if (!activeProjectId) {
           return;
@@ -1143,11 +1076,8 @@ export default function ProjectManager() {
         window.cancelAnimationFrame(terminalSyncRafRef.current);
         terminalSyncRafRef.current = null;
       }
-      pendingTerminalSyncRef.current = false;
-      isSplitResizingRef.current = false;
       syncTerminalSizeRef.current = () => {};
 
-      const activeProjectId = activeProjectIdRef.current;
       const allProjectIds = new Set([
         ...sessionByProjectRef.current.keys(),
         ...terminalByProjectRef.current.keys(),
@@ -1163,14 +1093,6 @@ export default function ProjectManager() {
       activeProjectIdRef.current = null;
     };
   }, []);
-
-  useEffect(() => {
-    isSplitResizingRef.current = isSplitResizing;
-    if (!isSplitResizing && pendingTerminalSyncRef.current) {
-      pendingTerminalSyncRef.current = false;
-      syncTerminalSizeRef.current();
-    }
-  }, [isSplitResizing]);
 
   useEffect(() => {
     if (!isDesktopApp()) {
@@ -1303,37 +1225,6 @@ export default function ProjectManager() {
   }, [selectedProject?.id, selectedProject?.path, selectedProject?.name]);
 
   useEffect(() => {
-    if (!isMenuExpanded || isAnyLayerOpen) {
-      return;
-    }
-
-    function handleOutsideMenuClick(event) {
-      const target = event.target;
-      if (!(target instanceof Node)) {
-        return;
-      }
-
-      if (menuPanelRef.current?.contains(target)) {
-        return;
-      }
-
-      if (menuToggleRef.current?.contains(target)) {
-        return;
-      }
-
-      setIsMenuExpanded(false);
-    }
-
-    document.addEventListener('mousedown', handleOutsideMenuClick);
-    document.addEventListener('touchstart', handleOutsideMenuClick, { passive: true });
-
-    return () => {
-      document.removeEventListener('mousedown', handleOutsideMenuClick);
-      document.removeEventListener('touchstart', handleOutsideMenuClick);
-    };
-  }, [isMenuExpanded, isAnyLayerOpen]);
-
-  useEffect(() => {
     if (!isAnyLayerOpen) {
       return;
     }
@@ -1365,105 +1256,86 @@ export default function ProjectManager() {
     <div className="manager-shell h-screen box-border text-[#E8F0FA] p-3 overflow-hidden">
       <div className="manager-noise" aria-hidden="true" />
 
-      <div ref={menuPanelRef} className={`manager-floating-menu ${isMenuExpanded ? 'is-open' : 'is-collapsed'}`}>
-        <section className="panel-shell manager-floating-menu-panel p-3 h-full flex flex-col overflow-hidden">
-          <div className="space-y-2 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
-            {filteredProjects.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-[#38506A] px-4 py-5 text-sm text-[#8FA4B8]">
-                프로젝트가 없습니다.
-              </div>
-            )}
-
-            {filteredProjects.map((project) => (
-              <div key={project.id} className="project-card-wrap">
-                <div
-                  className={`project-card ${project.id === selectedId ? 'is-active' : ''}`}
-                  onClick={() => setSelectedId(project.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      setSelectedId(project.id);
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  aria-pressed={project.id === selectedId}
-                >
-                  <h3 className="text-[14px] leading-tight font-semibold tracking-tight">{project.name}</h3>
-                </div>
-                <div className="project-card-actions">
-                  <button
-                    className="project-card-action project-card-edit"
-                    onClick={() => openEditProjectLayer(project)}
-                    type="button"
-                    aria-label={`${project.name} 수정`}
-                  >
-                    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
-                      <path
-                        d="M3 17.25V21h3.75L17.8 9.95l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.07-8.07.92.92L5.92 19.58zM20.71 7.04a1 1 0 0 0 0-1.41L18.37 3.3a1 1 0 0 0-1.41 0L15.1 5.16l3.75 3.75 1.86-1.87z"
-                        fill="currentColor"
-                      />
-                    </svg>
-                  </button>
-                  <button
-                    className="project-card-action project-card-delete"
-                    onClick={() => handleDeleteProject(project.id)}
-                    type="button"
-                    aria-label={`${project.name} 삭제`}
-                  >
-                    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
-                      <path
-                        d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM8 9h2v8H8V9zm-1 12h10a2 2 0 0 0 2-2V8H5v11a2 2 0 0 0 2 2z"
-                        fill="currentColor"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-3 shrink-0 flex items-center gap-2">
-            <button
-              className="manager-btn flex-1 h-10 px-4 text-[14px] whitespace-nowrap"
-              onClick={handleDeploySelectedProject}
-              type="button"
-              disabled={!selectedProject}
-            >
-              {isDeployingProject ? '배포 중...' : '배포'}
-            </button>
-            <button className="manager-btn manager-btn-primary flex-1 h-10 px-3 text-[14px]" onClick={openAddProjectLayer} type="button">
-              프로젝트 추가
-            </button>
-          </div>
-        </section>
-      </div>
-
-      <button
-        ref={menuToggleRef}
-        className={`manager-menu-toggle ${isMenuExpanded ? 'is-open' : 'is-collapsed'}`}
-        type="button"
-        onClick={() => setIsMenuExpanded((prev) => !prev)}
-        aria-label={isMenuExpanded ? '메뉴 접기' : '메뉴 펼치기'}
-      >
-        {isMenuExpanded ? (
-          <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false">
-            <path d="M5 5 15 15M15 5 5 15" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
-          </svg>
-        ) : (
-          <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false">
-            <rect x="3" y="3.7" width="14" height="2.6" rx="1.3" fill="currentColor" />
-            <rect x="3" y="8.7" width="14" height="2.6" rx="1.3" fill="currentColor" />
-            <rect x="3" y="13.7" width="14" height="2.6" rx="1.3" fill="currentColor" />
-          </svg>
-        )}
-      </button>
-
       <main className="relative z-10 h-full">
-        <div ref={splitContainerRef} className={`manager-main-split ${isSplitResizing ? 'is-resizing' : ''}`}>
+        <div className="manager-main-split">
           <section
-            className="panel-shell manager-main-outer-panel manager-main-outer-panel-left p-0 h-full min-w-0 overflow-hidden"
-            style={{ flex: `0 0 calc(${splitRatio * 100}% - ${MAIN_SPLITTER_PX / 2}px)` }}
+            className="panel-shell manager-main-outer-panel manager-main-outer-panel-left manager-main-menu-panel p-3 h-full min-w-0 flex flex-col overflow-hidden"
+            style={{ flex: `0 0 ${MENU_PANEL_WIDTH_PX}px` }}
+          >
+            <div className="space-y-2 flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1">
+              {filteredProjects.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-[#38506A] px-4 py-5 text-sm text-[#8FA4B8]">
+                  프로젝트가 없습니다.
+                </div>
+              )}
+
+              {filteredProjects.map((project) => (
+                <div key={project.id} className="project-card-wrap">
+                  <div
+                    className={`project-card ${project.id === selectedId ? 'is-active' : ''}`}
+                    onClick={() => setSelectedId(project.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedId(project.id);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={project.id === selectedId}
+                  >
+                    <h3 className="text-[14px] leading-tight font-semibold tracking-tight">{project.name}</h3>
+                  </div>
+                  <div className="project-card-actions">
+                    <button
+                      className="project-card-action project-card-edit"
+                      onClick={() => openEditProjectLayer(project)}
+                      type="button"
+                      aria-label={`${project.name} 수정`}
+                    >
+                      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
+                        <path
+                          d="M3 17.25V21h3.75L17.8 9.95l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.07-8.07.92.92L5.92 19.58zM20.71 7.04a1 1 0 0 0 0-1.41L18.37 3.3a1 1 0 0 0-1.41 0L15.1 5.16l3.75 3.75 1.86-1.87z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      className="project-card-action project-card-delete"
+                      onClick={() => handleDeleteProject(project.id)}
+                      type="button"
+                      aria-label={`${project.name} 삭제`}
+                    >
+                      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
+                        <path
+                          d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v8h-2V9zm4 0h2v8h-2V9zM8 9h2v8H8V9zm-1 12h10a2 2 0 0 0 2-2V8H5v11a2 2 0 0 0 2 2z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 shrink-0 flex items-center gap-2">
+              <button
+                className="manager-btn flex-1 h-10 px-4 text-[14px] whitespace-nowrap"
+                onClick={handleDeploySelectedProject}
+                type="button"
+                disabled={!selectedProject}
+              >
+                {isDeployingProject ? '배포 중...' : '배포'}
+              </button>
+              <button className="manager-btn manager-btn-primary flex-1 h-10 px-3 text-[14px]" onClick={openAddProjectLayer} type="button">
+                프로젝트 추가
+              </button>
+            </div>
+          </section>
+
+          <section
+            className="panel-shell manager-main-outer-panel manager-main-outer-panel-middle p-0 h-full min-w-0 overflow-hidden"
+            style={{ flex: `${TERMINAL_PANEL_FLEX} 1 0` }}
           >
             <div className="h-full relative">
               <div ref={terminalHostRef} className="terminal-pty-host manager-center-terminal-host manager-main-content-surface" />
@@ -1474,17 +1346,9 @@ export default function ProjectManager() {
             </div>
           </section>
 
-          <div
-            className={`manager-splitter ${isSplitResizing ? 'is-active' : ''}`}
-            onMouseDown={startSplitResize}
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="패널 크기 조절"
-          />
-
           <section
             className="panel-shell manager-main-outer-panel manager-main-outer-panel-right p-0 h-full min-w-0 flex flex-col overflow-hidden relative"
-            style={{ flex: `0 0 calc(${(1 - splitRatio) * 100}% - ${MAIN_SPLITTER_PX / 2}px)` }}
+            style={{ flex: `${BROWSER_PANEL_FLEX} 1 0` }}
           >
             <div className="manager-browser-actions">
               <button

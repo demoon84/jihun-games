@@ -1,41 +1,34 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { discoverLocalProjects, isDesktopApp, loadStore } from '../lib/desktopApi';
+import { dynamicGameRouteDefs } from '../apps/shared/dynamicGameRoutes';
 
-const DEFAULT_GAMES = [
-    {
-        id: 'defense',
+const ROUTE_FALLBACK_META = {
+    '/defense': {
         name: '디펜스 기갑 탱크',
         desc: '전략적인 배치와 합성을 통해 몰려오는 적들을 막아내세요.',
         color: 'bg-slate-800',
         icon: '🛡️',
-        path: '/defense'
     },
-    {
-        id: 'zombie',
+    '/zombie': {
         name: '수비대: 좀비 습격',
         desc: '끊임없이 몰려오는 좀비 무리로부터 생존하십시오.',
         color: 'bg-green-900',
         icon: '🧟',
-        path: '/zombie'
     },
-    {
-        id: 'baseball',
+    '/baseball': {
         name: '마구마구갓',
         desc: '타이밍을 맞춰 홈런을 날리세요! 리듬과 야구의 만남.',
         color: 'bg-blue-900',
         icon: '⚾',
-        path: '/baseball'
     },
-    {
-        id: 'proverb',
+    '/proverb': {
         name: '속담 파워',
         desc: '무한 난이도 속담 퀴즈! 당신의 어휘력을 테스트하세요.',
         color: 'bg-indigo-900',
         icon: '⚡',
-        path: '/proverb'
-    }
-];
+    },
+};
 
 const AUTO_GAME_ICONS = ['⚡', '🧟', '🛡️', '⚾', '🔥', '🎯', '🚀', '🧩', '🐉', '🎮'];
 const AUTO_GAME_COLORS = [
@@ -61,6 +54,23 @@ function autoGameIcon(seed) {
 
 function autoGameColor(seed) {
     return AUTO_GAME_COLORS[hashText(seed) % AUTO_GAME_COLORS.length];
+}
+
+function formatDisplayNameFromRoutePath(routePath) {
+    const lastSegment = String(routePath || '')
+        .split('/')
+        .filter(Boolean)
+        .pop() || '';
+
+    if (!lastSegment) {
+        return '새 프로젝트';
+    }
+
+    return lastSegment
+        .split(/[-_]/g)
+        .filter(Boolean)
+        .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
+        .join(' ');
 }
 
 function normalizeRoutePath(rawValue) {
@@ -118,6 +128,21 @@ function toGameItem(project) {
         path: routePath,
     };
 }
+
+const DEFAULT_GAMES = dynamicGameRouteDefs.map((routeDef) => {
+    const routePath = normalizeRoutePath(routeDef.path);
+    const routeMeta = ROUTE_FALLBACK_META[routePath] || {};
+    const seed = routeMeta.name || routeDef.folderName || routePath;
+
+    return {
+        id: routeDef.folderName || routePath,
+        name: routeMeta.name || formatDisplayNameFromRoutePath(routePath),
+        desc: routeMeta.desc || '설명이 아직 없습니다.',
+        color: routeMeta.color || autoGameColor(seed),
+        icon: routeMeta.icon || autoGameIcon(seed),
+        path: routePath,
+    };
+});
 
 export default function Home() {
     const [games, setGames] = useState(DEFAULT_GAMES);
