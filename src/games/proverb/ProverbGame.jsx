@@ -174,9 +174,6 @@ export default function ProverbGame() {
                                 <span data-id="proverb-mixed-desc" className="block text-xs font-normal opacity-90">주관식 6 : 객관식 4 (3점)</span>
                             </button>
                         </div>
-                        <button data-id="proverb-exit-btn" onClick={() => window.location.href = '/'} className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xl font-bold py-3 rounded-2xl transition-all border border-indigo-200">
-                            🏠 홈으로 나가기
-                        </button>
                     </div>
                 )}
 
@@ -315,9 +312,6 @@ export default function ProverbGame() {
 
                         <button data-id="proverb-retry-btn" onClick={() => setScreen('start')} className="w-full bg-indigo-500 hover:bg-indigo-600 text-white text-2xl font-bold py-5 rounded-2xl transition-all shadow-xl hover:scale-105 mb-4">
                             다시 도전하기 🔄
-                        </button>
-                        <button data-id="proverb-home-btn" onClick={() => window.location.href = '/'} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-500 text-xl font-bold py-4 rounded-2xl">
-                            홈으로 나가기
                         </button>
                     </div>
                 )}
