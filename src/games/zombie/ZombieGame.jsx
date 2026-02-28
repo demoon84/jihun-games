@@ -5,87 +5,140 @@ class Leader {
     constructor(x, y) {
         this.x = x;
         this.y = y;
-        this.hp = 100;
-        this.maxHp = 100;
-        this.radius = 30;
-        this.speed = 5;
+        this.hp = 150;
+        this.maxHp = 150;
+        this.radius = 32;
+        this.speed = 4.5;
+        this.vx = 0;
+        this.vy = 0;
+        this.skillGauge = 0;
+        this.maxSkillGauge = 100;
     }
     update(state) {
+        let prevX = this.x;
+        let prevY = this.y;
+
         if (state.input.active) {
             const dx = state.input.x - this.x;
             const dy = state.input.y - this.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
             if (dist > 5) {
-                this.x += (dx / dist) * this.speed;
-                this.y += (dy / dist) * this.speed;
+                this.vx = (dx / dist) * this.speed;
+                this.vy = (dy / dist) * this.speed;
+                this.x += this.vx;
+                this.y += this.vy;
+            } else {
+                this.vx *= 0.9;
+                this.vy *= 0.9;
             }
+        } else {
+            this.vx *= 0.9;
+            this.vy *= 0.9;
         }
+
         this.x = Math.max(this.radius, Math.min(state.width - this.radius, this.x));
         this.y = Math.max(this.radius, Math.min(state.height - this.radius, this.y));
     }
     draw(ctx, state) {
-        // Outer glow
-        const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius + 15);
-        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
-        gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        // Aura
+        const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius + 20);
+        gradient.addColorStop(0, 'rgba(251, 191, 36, 0.4)');
+        gradient.addColorStop(1, 'rgba(251, 191, 36, 0)');
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius + 15, 0, Math.PI * 2);
+        ctx.arc(this.x, this.y, this.radius + 20, 0, Math.PI * 2);
         ctx.fillStyle = gradient;
         ctx.fill();
 
-        // Main body (white circle)
+        // Golden Outer Ring
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.fill();
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 4;
+        ctx.stroke();
 
-        // Yellow triangle in center
+        // Main body
         ctx.beginPath();
-        ctx.moveTo(this.x, this.y - 12);
-        ctx.lineTo(this.x - 10, this.y + 8);
-        ctx.lineTo(this.x + 10, this.y + 8);
-        ctx.closePath();
-        ctx.fillStyle = '#fbbf24';
+        ctx.arc(this.x, this.y, this.radius - 2, 0, Math.PI * 2);
+        ctx.fillStyle = '#1e1b4b';
         ctx.fill();
 
-        // HP bar (red, below leader)
-        const hpWidth = 60;
-        const hpHeight = 8;
-        ctx.fillStyle = '#dc2626';
-        ctx.fillRect(this.x - hpWidth / 2, this.y + this.radius + 10, hpWidth * (this.hp / this.maxHp), hpHeight);
+        // Crown/Icon in center
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = 'bold 20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('♔', this.x, this.y);
+
+        // HP bar (ROK style)
+        const barW = 80;
+        ctx.fillStyle = '#374151';
+        ctx.fillRect(this.x - barW/2, this.y + this.radius + 15, barW, 8);
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(this.x - barW/2, this.y + this.radius + 15, barW * (this.hp / this.maxHp), 8);
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(this.x - barW/2, this.y + this.radius + 15, barW, 8);
     }
 }
 
-class Follower {
-    constructor(x, y, index) {
-        this.x = x;
-        this.y = y;
+class Unit {
+    constructor(index, type = 'infantry') {
         this.index = index;
-        this.radius = 18;
+        this.type = type; // 'infantry' (shield), 'archer'
+        this.x = 0;
+        this.y = 0;
+        this.radius = type === 'infantry' ? 20 : 16;
+        this.hp = type === 'infantry' ? 100 : 50;
         this.attackCooldown = 0;
-        this.angle = (index / 3) * Math.PI * 2;
+        this.color = type === 'infantry' ? '#60a5fa' : '#f87171';
     }
     update(state) {
-        const targetAngle = this.angle + state.frameCount * 0.015;
-        const orbitRadius = 70 + this.index * 25;
-        const targetX = state.leader.x + Math.cos(targetAngle) * orbitRadius;
-        const targetY = state.leader.y + Math.sin(targetAngle) * orbitRadius;
+        const leader = state.leader;
+        // Formation logic: Shield in front, Archers in back
+        let targetX, targetY;
+        const spacing = 50;
 
-        this.x += (targetX - this.x) * state.stats.followerSpeed;
-        this.y += (targetY - this.y) * state.stats.followerSpeed;
+        if (this.type === 'infantry') {
+            // Circle formation around leader
+            const angle = (this.index / 4) * Math.PI * 2 + state.frameCount * 0.02;
+            targetX = leader.x + Math.cos(angle) * 70;
+            targetY = leader.y + Math.sin(angle) * 70;
+        } else {
+            // Grid formation behind leader based on movement
+            const angle = Math.atan2(leader.vy, leader.vx) + Math.PI;
+            const row = Math.floor((this.index - 4) / 4) + 1;
+            const col = (this.index - 4) % 4 - 1.5;
+            
+            const offsetX = Math.cos(angle) * (row * 60) + Math.cos(angle + Math.PI/2) * (col * 40);
+            const offsetY = Math.sin(angle) * (row * 60) + Math.sin(angle + Math.PI/2) * (col * 40);
+            
+            // If standing still, archers circle outer rim
+            if (Math.abs(leader.vx) < 0.1 && Math.abs(leader.vy) < 0.1) {
+                const idleAngle = (this.index / 8) * Math.PI * 2 - state.frameCount * 0.01;
+                targetX = leader.x + Math.cos(idleAngle) * 120;
+                targetY = leader.y + Math.sin(idleAngle) * 120;
+            } else {
+                targetX = leader.x + offsetX;
+                targetY = leader.y + offsetY;
+            }
+        }
+
+        this.x += (targetX - this.x) * 0.15;
+        this.y += (targetY - this.y) * 0.15;
 
         if (this.attackCooldown > 0) this.attackCooldown--;
         if (this.attackCooldown <= 0) {
-            const target = this.findTarget(state);
+            const range = this.type === 'archer' ? state.stats.range * 1.5 : state.stats.range;
+            const target = this.findTarget(state, range);
             if (target) {
                 this.shoot(state, target);
-                this.attackCooldown = Math.floor(60 / state.stats.attackSpeed);
+                this.attackCooldown = Math.floor(60 / (this.type === 'archer' ? state.stats.atkSpd * 1.2 : state.stats.atkSpd));
             }
         }
     }
-    findTarget(state) {
+    findTarget(state, range) {
         let closest = null;
-        let closestDist = state.stats.followerRange;
+        let closestDist = range;
         for (const enemy of state.enemies) {
             const dx = enemy.x - this.x;
             const dy = enemy.y - this.y;
@@ -101,48 +154,40 @@ class Follower {
         const dx = target.x - this.x;
         const dy = target.y - this.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
+        const dmg = this.type === 'archer' ? state.stats.dmg * 1.4 : state.stats.dmg;
         state.projectiles.push(new Projectile(
             this.x, this.y,
-            (dx / dist) * 8, (dy / dist) * 8,
-            state.stats.followerAtk,
-            state.stats.critChance,
-            state.stats.knockback
+            (dx / dist) * 10, (dy / dist) * 10,
+            dmg, state.stats.crit, this.color
         ));
     }
     draw(ctx) {
-        // Blue body with glow
-        const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius + 5);
-        gradient.addColorStop(0, '#3b82f6');
-        gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius + 5, 0, Math.PI * 2);
-        ctx.fillStyle = gradient;
-        ctx.fill();
-
-        // Main body
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = '#3b82f6';
+        ctx.fillStyle = this.color;
         ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
 
-        // White eye
-        ctx.beginPath();
-        ctx.arc(this.x, this.y - 3, 5, 0, Math.PI * 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.fill();
+        // Simple weapon icon
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.type === 'infantry' ? '🛡️' : '🏹', this.x, this.y);
     }
 }
 
 class Enemy {
-    constructor(x, y, type, level) {
+    constructor(x, y, level) {
         this.x = x;
         this.y = y;
-        this.type = type;
-        this.radius = type === 'tank' ? 35 : (type === 'fast' ? 18 : 25);
-        this.speed = type === 'fast' ? 2.5 : (type === 'tank' ? 1 : 1.5);
-        this.hp = type === 'tank' ? 80 + level * 10 : (type === 'fast' ? 20 + level * 3 : 40 + level * 5);
+        this.radius = 22 + Math.random() * 10;
+        this.speed = 1.2 + Math.random() * 0.8;
+        this.hp = 40 + level * 8;
         this.maxHp = this.hp;
-        this.damage = type === 'tank' ? 15 : (type === 'fast' ? 5 : 10);
+        this.damage = 8 + Math.floor(level/2);
         this.attackCooldown = 0;
     }
     update(state, onGameOver) {
@@ -156,118 +201,52 @@ class Enemy {
         } else {
             if (this.attackCooldown <= 0) {
                 state.leader.hp -= this.damage;
+                state.leader.skillGauge = Math.min(state.leader.maxSkillGauge, state.leader.skillGauge + 2);
                 this.attackCooldown = 60;
-                if (state.leader.hp <= 0) {
-                    onGameOver();
-                }
+                if (state.leader.hp <= 0) onGameOver();
             }
         }
         if (this.attackCooldown > 0) this.attackCooldown--;
     }
     draw(ctx) {
-        const color = this.type === 'tank' ? '#166534' : (this.type === 'fast' ? '#4ade80' : '#22c55e');
-
-        // Main body (green circle)
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = color;
+        ctx.fillStyle = '#14532d';
         ctx.fill();
-
-        // Antennae
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 3;
-
-        // Left antenna
-        ctx.beginPath();
-        ctx.moveTo(this.x - this.radius * 0.4, this.y - this.radius * 0.6);
-        ctx.lineTo(this.x - this.radius * 0.6, this.y - this.radius * 1.2);
+        ctx.strokeStyle = '#22c55e';
+        ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Right antenna
-        ctx.beginPath();
-        ctx.moveTo(this.x + this.radius * 0.4, this.y - this.radius * 0.6);
-        ctx.lineTo(this.x + this.radius * 0.6, this.y - this.radius * 1.2);
-        ctx.stroke();
-
-        // Red antenna tips
-        ctx.beginPath();
-        ctx.arc(this.x - this.radius * 0.6, this.y - this.radius * 1.2, 4, 0, Math.PI * 2);
+        // Enemy eyes
         ctx.fillStyle = '#ef4444';
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.arc(this.x + this.radius * 0.6, this.y - this.radius * 1.2, 4, 0, Math.PI * 2);
-        ctx.fillStyle = '#ef4444';
-        ctx.fill();
-
-        // Eyes (red)
-        ctx.beginPath();
-        ctx.arc(this.x - 6, this.y - 2, 4, 0, Math.PI * 2);
-        ctx.fillStyle = '#ef4444';
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.arc(this.x + 6, this.y - 2, 4, 0, Math.PI * 2);
-        ctx.fillStyle = '#ef4444';
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(this.x-6, this.y-4, 3, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(this.x+6, this.y-4, 3, 0, Math.PI*2); ctx.fill();
     }
 }
 
 class Projectile {
-    constructor(x, y, vx, vy, damage, critChance, knockback) {
-        this.x = x;
-        this.y = y;
-        this.vx = vx;
-        this.vy = vy;
-        this.damage = damage;
-        this.critChance = critChance;
-        this.knockback = knockback;
-        this.radius = 6;
-        this.life = 120;
+    constructor(x, y, vx, vy, dmg, crit, color) {
+        this.x = x; this.y = y; this.vx = vx; this.vy = vy;
+        this.dmg = dmg; this.crit = crit; this.color = color;
+        this.radius = 5; this.life = 100;
     }
     update(state, createParticles, killEnemy) {
-        this.x += this.vx;
-        this.y += this.vy;
-        this.life--;
-
+        this.x += this.vx; this.y += this.vy; this.life--;
         for (let i = state.enemies.length - 1; i >= 0; i--) {
-            const enemy = state.enemies[i];
-            const dx = enemy.x - this.x;
-            const dy = enemy.y - this.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < enemy.radius + this.radius) {
-                const isCrit = Math.random() < this.critChance;
-                const dmg = isCrit ? this.damage * 2 : this.damage;
-                enemy.hp -= dmg;
-
-                const kbDist = this.knockback * 10;
-                enemy.x += (dx / dist) * kbDist;
-                enemy.y += (dy / dist) * kbDist;
-
-                if (enemy.hp <= 0) {
-                    killEnemy(i);
-                }
-
-                createParticles(this.x, this.y, isCrit ? '#fbbf24' : '#60a5fa', 5);
-                this.life = 0;
-                break;
+            const e = state.enemies[i];
+            const dx = e.x - this.x, dy = e.y - this.y, dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < e.radius + this.radius) {
+                const isCrit = Math.random() < this.crit;
+                e.hp -= isCrit ? this.dmg * 2 : this.dmg;
+                if (e.hp <= 0) killEnemy(i);
+                createParticles(this.x, this.y, isCrit ? '#fbbf24' : this.color, 4);
+                this.life = 0; break;
             }
         }
     }
     draw(ctx) {
-        // Blue projectile with glow
-        const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius + 3);
-        gradient.addColorStop(0, '#60a5fa');
-        gradient.addColorStop(1, 'rgba(96, 165, 250, 0)');
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius + 3, 0, Math.PI * 2);
-        ctx.fillStyle = gradient;
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = '#3b82f6';
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+        ctx.fillStyle = this.color; ctx.fill();
     }
 }
 
@@ -275,191 +254,128 @@ export default function ZombieGame() {
     const canvasRef = useRef(null);
     const loopRef = useRef(null);
     const [isRunning, setIsRunning] = useState(false);
-
     const [level, setLevel] = useState(1);
     const [exp, setExp] = useState(0);
     const [maxExp, setMaxExp] = useState(100);
-    const [unitCount, setUnitCount] = useState(3);
-    const [timeStr, setTimeStr] = useState("00:00");
+    const [skillGauge, setSkillGauge] = useState(0);
     const [showUpgrade, setShowUpgrade] = useState(false);
     const [isGameOver, setIsGameOver] = useState(false);
-    const [finalStats, setFinalStats] = useState("");
     const [upgradeOptions, setUpgradeOptions] = useState([]);
 
     const gameState = useRef({
         level: 1, exp: 0, maxExp: 100,
-        leader: null, followers: [], enemies: [], projectiles: [], particles: [],
+        leader: null, units: [], enemies: [], projectiles: [], particles: [],
         input: { x: 0, y: 0, active: false },
-        stats: { followerAtk: 12, followerRange: 180, followerSpeed: 0.06, attackSpeed: 1, critChance: 0.05, knockback: 0.5, spawnRate: 120, armorGlow: 0 },
-        width: 0, height: 0, frameCount: 0, gameTime: 0,
-        isPaused: false
+        stats: { dmg: 15, range: 200, atkSpd: 1, crit: 0.05, spawnRate: 100 },
+        width: 0, height: 0, frameCount: 0, gameTime: 0, isPaused: false
     });
-
-    const getTimeStr = (t) => {
-        const m = Math.floor(t / 60), s = t % 60;
-        return `${m}:${s < 10 ? '0' + s : s}`;
-    };
 
     useEffect(() => {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
 
-        const handleGameOver = () => {
-            setFinalStats(`최종 레벨: ${gameState.current.level} | 생존 시간: ${getTimeStr(gameState.current.gameTime)}`);
-            setIsGameOver(true);
-            setIsRunning(false);
-            cancelAnimationFrame(loopRef.current);
-        };
-
-        const createParticles = (x, y, c, n = 10) => {
-            const state = gameState.current;
+        const handleGameOver = () => { setIsGameOver(true); setIsRunning(false); };
+        const createParticles = (x, y, c, n = 8) => {
             for (let i = 0; i < n; i++)
-                state.particles.push({ x, y, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6, alpha: 1, color: c, size: Math.random() * 3 + 1 });
+                gameState.current.particles.push({ x, y, vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6, alpha: 1, color: c, size: Math.random()*3+1 });
         };
-
         const killEnemy = (idx) => {
             const state = gameState.current;
             createParticles(state.enemies[idx].x, state.enemies[idx].y, '#22c55e');
             state.enemies.splice(idx, 1);
-            gainExp(35);
+            state.leader.skillGauge = Math.min(state.leader.maxSkillGauge, state.leader.skillGauge + 5);
+            gainExp(25);
         };
-
         const gainExp = (amt) => {
-            const state = gameState.current;
-            state.exp += amt;
-            if (state.exp >= state.maxExp) levelUp();
+            const state = gameState.current; state.exp += amt;
+            if (state.exp >= state.maxExp) {
+                state.level++; state.exp = 0; state.maxExp = Math.floor(state.maxExp * 1.35);
+                state.isPaused = true; setLevel(state.level); setMaxExp(state.maxExp);
+                generateUpgrades();
+            }
             setExp(state.exp);
         };
-
-        const levelUp = () => {
-            const state = gameState.current;
-            state.level++;
-            state.exp = 0;
-            state.maxExp = Math.floor(state.maxExp * 1.38);
-            state.isPaused = true;
-
-            setLevel(state.level);
-            setMaxExp(state.maxExp);
-            generateUpgrades();
-        };
-
         const generateUpgrades = () => {
             const state = gameState.current;
             const options = [
-                { title: '수비대 충원', desc: '새로운 대원을 영입합니다.', action: () => { state.followers.push(new Follower(state.leader.x, state.leader.y, state.followers.length)); setUnitCount(c => c + 1); } },
-                { title: '공격력 증강', desc: '대원들의 파괴력이 25% 상승합니다.', action: () => state.stats.followerAtk *= 1.25 },
-                { title: '연사 속도', desc: '공격 속도가 20% 빨라집니다.', action: () => state.stats.attackSpeed *= 1.2 },
-                { title: '치명타 상향', desc: '치명타 확률이 10% 증가합니다.', action: () => state.stats.critChance += 0.1 },
-                { title: '넉백 강화', desc: '적을 더 멀리 밀쳐냅니다.', action: () => state.stats.knockback += 0.4 },
-                { title: '사거리 증가', desc: '공격 사거리가 15% 넓어집니다.', action: () => state.stats.followerRange *= 1.15 },
-                { title: '응급 치료', desc: '리더의 체력을 30% 회복합니다.', action: () => state.leader.hp = Math.min(state.leader.maxHp, state.leader.hp + 30) },
-                { title: '방어 시스템', desc: '보호막 생성 및 체력이 증가합니다.', action: () => { state.stats.armorGlow += 1; state.leader.maxHp += 20; state.leader.hp += 20; } }
+                { title: '🛡️ 보병 추가', desc: '전열을 방어할 보병을 영입합니다.', action: () => state.units.push(new Unit(state.units.length, 'infantry')) },
+                { title: '🏹 궁병 추가', desc: '후방 화력을 지원할 궁병을 영입합니다.', action: () => state.units.push(new Unit(state.units.length, 'archer')) },
+                { title: '⚔️ 공격력 증강', desc: '모든 부대의 공격력이 20% 상승합니다.', action: () => state.stats.dmg *= 1.2 },
+                { title: '🏹 사거리 확장', desc: '궁병들의 사거리가 크게 증가합니다.', action: () => state.stats.range *= 1.25 },
+                { title: '❤️ 군단 정비', desc: '사령관과 부대의 체력을 회복합니다.', action: () => state.leader.hp = Math.min(state.leader.maxHp, state.leader.hp + 50) }
             ];
             setUpgradeOptions(options.sort(() => 0.5 - Math.random()).slice(0, 3));
             setShowUpgrade(true);
         };
 
-        const resize = () => {
-            if (!canvas) return;
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            gameState.current.width = canvas.width;
-            gameState.current.height = canvas.height;
+        const useSkill = () => {
+            const state = gameState.current;
+            if (state.leader.skillGauge < state.leader.maxSkillGauge) return;
+            state.leader.skillGauge = 0;
+            // Fire wave
+            createParticles(state.leader.x, state.leader.y, '#fbbf24', 50);
+            for (let i = state.enemies.length - 1; i >= 0; i--) {
+                const e = state.enemies[i];
+                const dx = e.x - state.leader.x, dy = e.y - state.leader.y, dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < 400) { e.hp -= 200; if (e.hp <= 0) killEnemy(i); }
+            }
         };
+
+        const handleKeyDown = (e) => { if (e.code === 'Space') useSkill(); };
+        window.addEventListener('keydown', handleKeyDown);
 
         const loop = () => {
             const state = gameState.current;
-            if (!isRunning || state.isPaused) {
-                if (isRunning) loopRef.current = requestAnimationFrame(loop);
-                return;
-            }
+            if (!isRunning || state.isPaused) { if (isRunning) loopRef.current = requestAnimationFrame(loop); return; }
 
-            // Dark background
-            ctx.fillStyle = '#0f0f0f';
-            ctx.fillRect(0, 0, state.width, state.height);
+            ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0, 0, state.width, state.height);
+            
+            // Grid
+            ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1;
+            for (let x = 0; x < state.width; x += 80) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, state.height); ctx.stroke(); }
+            for (let y = 0; y < state.height; y += 80) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(state.width, y); ctx.stroke(); }
 
-            // Grid lines
-            ctx.strokeStyle = '#1f1f1f';
-            ctx.lineWidth = 1;
-            const gridSize = 100;
-            for (let x = 0; x < state.width; x += gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, state.height);
-                ctx.stroke();
-            }
-            for (let y = 0; y < state.height; y += gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(state.width, y);
-                ctx.stroke();
-            }
+            state.leader.update(state);
+            state.leader.draw(ctx, state);
+            setSkillGauge(state.leader.skillGauge);
 
-            // Update & Draw Leader
-            if (state.leader) {
-                state.leader.update(state);
-                state.leader.draw(ctx, state);
-            }
-
-            // Spawn enemies
             if (state.frameCount % state.stats.spawnRate === 0) {
-                let x, y, side = Math.floor(Math.random() * 4);
-                if (side === 0) { x = Math.random() * state.width; y = -50; }
-                else if (side === 1) { x = state.width + 50; y = Math.random() * state.height; }
-                else if (side === 2) { x = Math.random() * state.width; y = state.height + 50; }
-                else { x = -50; y = Math.random() * state.height; }
-
-                let r = Math.random(), type = r > 0.92 ? 'tank' : (r > 0.78 ? 'fast' : 'normal');
-                state.enemies.push(new Enemy(x, y, type, state.level));
-                if (state.stats.spawnRate > 40 && state.frameCount % 300 === 0) state.stats.spawnRate -= 5;
+                let x, y, s = Math.floor(Math.random()*4);
+                if (s === 0) { x = Math.random()*state.width; y = -50; }
+                else if (s === 1) { x = state.width+50; y = Math.random()*state.height; }
+                else if (s === 2) { x = Math.random()*state.width; y = state.height+50; }
+                else { x = -50; y = Math.random()*state.height; }
+                state.enemies.push(new Enemy(x, y, state.level));
             }
 
-            // Update & Draw Projectiles
             for (let i = state.projectiles.length - 1; i >= 0; i--) {
                 state.projectiles[i].update(state, createParticles, killEnemy);
                 state.projectiles[i].draw(ctx);
                 if (state.projectiles[i].life <= 0) state.projectiles.splice(i, 1);
             }
-
-            // Update & Draw Enemies
             for (let i = state.enemies.length - 1; i >= 0; i--) {
                 state.enemies[i].update(state, handleGameOver);
                 state.enemies[i].draw(ctx);
             }
-
-            // Update & Draw Followers
-            state.followers.forEach(f => { f.update(state); f.draw(ctx); });
-
-            // Particles
+            state.units.forEach(u => { u.update(state); u.draw(ctx); });
             for (let i = state.particles.length - 1; i >= 0; i--) {
-                const p = state.particles[i];
-                p.x += p.vx; p.y += p.vy; p.alpha -= 0.025;
+                const p = state.particles[i]; p.x += p.vx; p.y += p.vy; p.alpha -= 0.03;
                 if (p.alpha <= 0) state.particles.splice(i, 1);
-                else {
-                    ctx.globalAlpha = p.alpha;
-                    ctx.fillStyle = p.color;
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.globalAlpha = 1;
-                }
+                else { ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1; }
             }
 
             state.frameCount++;
-            if (state.frameCount % 60 === 0) {
-                state.gameTime++;
-                setTimeStr(getTimeStr(state.gameTime));
-            }
-
             loopRef.current = requestAnimationFrame(loop);
         };
 
+        const resize = () => {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            gameState.current.width = canvas.width; gameState.current.height = canvas.height;
+        };
         const updateInput = (e) => {
             const cx = e.touches ? e.touches[0].clientX : e.clientX;
             const cy = e.touches ? e.touches[0].clientY : e.clientY;
-            gameState.current.input.x = cx;
-            gameState.current.input.y = cy;
-            gameState.current.input.active = true;
+            gameState.current.input.x = cx; gameState.current.input.y = cy; gameState.current.input.active = true;
         };
 
         window.addEventListener('resize', resize);
@@ -471,103 +387,76 @@ export default function ZombieGame() {
         canvas.addEventListener('touchend', () => gameState.current.input.active = false);
 
         resize();
-
-        if (isRunning) {
-            loopRef.current = requestAnimationFrame(loop);
-        }
-
+        if (isRunning) loopRef.current = requestAnimationFrame(loop);
         return () => {
             window.removeEventListener('resize', resize);
+            window.removeEventListener('keydown', handleKeyDown);
             cancelAnimationFrame(loopRef.current);
         };
     }, [isRunning]);
 
-    const handleStartClick = () => {
+    const handleStart = () => {
         const state = gameState.current;
-        state.width = window.innerWidth;
-        state.height = window.innerHeight;
-        state.level = 1;
-        state.exp = 0;
-        state.maxExp = 100;
-        state.frameCount = 0;
-        state.gameTime = 0;
-        state.enemies = [];
-        state.projectiles = [];
-        state.particles = [];
-        state.stats = { followerAtk: 12, followerRange: 180, followerSpeed: 0.06, attackSpeed: 1, critChance: 0.05, knockback: 0.5, spawnRate: 120, armorGlow: 0 };
-        state.isPaused = false;
-
-        state.leader = new Leader(state.width / 2, state.height / 2);
-        state.followers = [];
-        for (let i = 0; i < 3; i++) {
-            state.followers.push(new Follower(state.leader.x, state.leader.y, i));
-        }
-
-        setLevel(1);
-        setExp(0);
-        setMaxExp(100);
-        setUnitCount(3);
-        setTimeStr("0:00");
-        setIsGameOver(false);
-        setIsRunning(true);
+        state.leader = new Leader(window.innerWidth/2, window.innerHeight/2);
+        state.units = [new Unit(0, 'infantry'), new Unit(1, 'infantry'), new Unit(2, 'archer'), new Unit(3, 'archer')];
+        state.enemies = []; state.projectiles = []; state.particles = []; state.level = 1; state.exp = 0; state.frameCount = 0;
+        setIsGameOver(false); setIsRunning(true); setLevel(1); setExp(0);
     };
 
     return (
-        <div data-id="zombie-container" className="relative w-full h-screen bg-black overflow-hidden font-sans select-none touch-none">
-            <canvas data-id="zombie-canvas" ref={canvasRef} className="block w-full h-full" />
+        <div className="relative w-full h-screen bg-black overflow-hidden font-sans select-none touch-none">
+            <canvas ref={canvasRef} className="block w-full h-full" />
 
-            {/* UI Layer */}
+            {/* HUD */}
             {isRunning && !isGameOver && (
-                <div data-id="zombie-hud" className="absolute top-0 left-0 w-full p-4 flex justify-between items-start text-white pointer-events-none">
-                    <div data-id="zombie-hud-left" className="flex flex-col gap-1">
-                        <div data-id="zombie-level" className="text-2xl font-black text-green-400 drop-shadow-lg">Lv.{level}</div>
-                        <div data-id="zombie-exp-bar" className="w-56 h-4 bg-gray-900 rounded-full border border-gray-700 overflow-hidden shadow-inner">
-                            <div data-id="zombie-exp-fill" className="h-full bg-gradient-to-r from-green-600 to-green-400 transition-all duration-300" style={{ width: `${(exp / maxExp) * 100}%` }}></div>
+                <div className="absolute top-0 left-0 w-full p-6 flex justify-between items-start pointer-events-none">
+                    <div className="flex flex-col gap-2">
+                        <div className="text-3xl font-black text-amber-400 drop-shadow-md">COMMANDER LV.{level}</div>
+                        <div className="w-64 h-3 bg-zinc-900 rounded-full border border-zinc-700 overflow-hidden">
+                            <div className="h-full bg-amber-500 transition-all duration-300" style={{ width: `${(exp/maxExp)*100}%` }}></div>
                         </div>
-                        <div data-id="zombie-exp-text" className="text-[10px] text-green-300 font-bold uppercase tracking-wider">EXP: {Math.floor(exp)} / {Math.floor(maxExp)}</div>
                     </div>
-                    <div data-id="zombie-hud-right" className="text-right">
-                        <div data-id="zombie-unit-count" className="text-xl font-black text-blue-400">수비대: {unitCount}명</div>
-                        <div data-id="zombie-survival-time" className="text-sm text-gray-400">Survival: {timeStr}</div>
+                    <div className="flex flex-col items-end gap-3">
+                        <div className="relative group pointer-events-auto cursor-pointer" onClick={() => { if(skillGauge >= 100) { /* trigger skill */ } }}>
+                            <div className="text-xs text-amber-300 font-bold mb-1 text-center">SKILL (SPACE)</div>
+                            <div className="w-20 h-20 rounded-full border-4 border-zinc-800 bg-zinc-950 flex items-center justify-center overflow-hidden">
+                                <div className="absolute bottom-0 w-full bg-amber-600/40 transition-all duration-300" style={{ height: `${skillGauge}%` }}></div>
+                                <span className="text-3xl z-10">{skillGauge >= 100 ? '🔥' : '⚡'}</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
 
             {/* Start Screen */}
             {!isRunning && !isGameOver && (
-                <div data-id="zombie-start" className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-50">
-                    <h1 data-id="zombie-start-title" className="text-6xl md:text-8xl text-green-600 font-black mb-4 tracking-tighter text-center drop-shadow-[0_0_30px_rgba(34,197,94,0.6)]">수비대</h1>
-                    <p className="text-gray-400 mb-8 text-center px-4">화면을 터치/클릭하여 리더를 이동하세요<br />자동으로 좀비를 공격합니다!</p>
-                    <div data-id="zombie-start-buttons" className="flex flex-col sm:flex-row gap-4 w-full px-10 max-w-lg">
-                        <button data-id="zombie-play-btn" onClick={handleStartClick} className="flex-1 py-5 bg-green-600 hover:bg-green-500 text-white text-2xl font-bold rounded-3xl transition-all active:scale-95 shadow-xl">방어 시작</button>
-                    </div>
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-50">
+                    <h1 className="text-7xl text-amber-500 font-black mb-4 tracking-tighter text-center italic">RISE OF SURVIVORS</h1>
+                    <p className="text-zinc-400 mb-10 text-lg text-center font-light">전설의 사령관이 되어 좀비 군단을 정벌하세요.</p>
+                    <button onClick={handleStart} className="px-16 py-6 bg-amber-600 hover:bg-amber-500 text-white text-3xl font-black rounded-full shadow-[0_0_40px_rgba(217,119,6,0.5)] transition-all active:scale-95">원정 시작</button>
                 </div>
             )}
 
             {/* Game Over */}
             {isGameOver && (
-                <div data-id="zombie-gameover" className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 z-50">
-                    <h1 data-id="zombie-gameover-title" className="text-6xl text-red-700 font-black mb-2 animate-pulse">GAME OVER</h1>
-                    <p data-id="zombie-gameover-stats" className="text-white text-2xl mb-6 font-light">{finalStats}</p>
-                    <div data-id="zombie-gameover-buttons" className="flex gap-4 w-full px-10 max-w-lg">
-                        <button data-id="zombie-restart-btn" onClick={handleStartClick} className="flex-1 py-4 bg-zinc-800 hover:bg-zinc-700 text-white text-xl font-bold rounded-2xl transition-all">재시작</button>
-                    </div>
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 z-50">
+                    <h1 className="text-8xl text-red-600 font-black mb-6">DEFEAT</h1>
+                    <button onClick={handleStart} className="px-12 py-4 bg-zinc-800 text-white text-xl font-bold rounded-xl">다시 도전</button>
                 </div>
             )}
 
             {/* Upgrade Modal */}
             {showUpgrade && (
-                <div data-id="zombie-upgrade-overlay" className="absolute inset-0 flex items-center justify-center bg-black/90 z-50">
-                    <div data-id="zombie-upgrade-modal" className="bg-zinc-950 p-8 rounded-3xl border-4 border-green-500 max-w-sm w-full shadow-2xl">
-                        <h2 data-id="zombie-upgrade-title" className="text-3xl text-green-500 font-black text-center mb-4">레벨 업!</h2>
-                        <div data-id="zombie-upgrade-options" className="space-y-4">
+                <div className="absolute inset-0 flex items-center justify-center bg-black/90 z-50">
+                    <div className="bg-zinc-950 p-8 rounded-3xl border-4 border-amber-600 max-w-sm w-full shadow-2xl">
+                        <h2 className="text-4xl text-amber-500 font-black text-center mb-8 uppercase tracking-widest">Victory!</h2>
+                        <div className="space-y-4">
                             {upgradeOptions.map((opt, i) => (
-                                <div data-id={`zombie-upgrade-option-${i}`} key={i}
-                                    onClick={() => { opt.action(); setShowUpgrade(false); gameState.current.isPaused = false; }}
-                                    className="p-4 rounded-2xl bg-zinc-900 hover:bg-zinc-800 border-2 border-zinc-800 hover:border-green-500 cursor-pointer transition-all"
+                                <div key={i} onClick={() => { opt.action(); setShowUpgrade(false); gameState.current.isPaused = false; }}
+                                    className="p-5 rounded-2xl bg-zinc-900 hover:bg-amber-900/40 border-2 border-zinc-800 hover:border-amber-500 cursor-pointer transition-all group"
                                 >
-                                    <div className="text-xl font-bold text-green-400 mb-1">{opt.title}</div>
-                                    <div className="text-xs text-gray-500">{opt.desc}</div>
+                                    <div className="text-xl font-bold text-amber-400 mb-1 group-hover:text-white">{opt.title}</div>
+                                    <div className="text-sm text-zinc-500 group-hover:text-zinc-300">{opt.desc}</div>
                                 </div>
                             ))}
                         </div>

@@ -345,6 +345,9 @@ export default function ProjectManager() {
   const activeProjectIdRef = useRef(null);
   const syncTerminalSizeRef = useRef(() => {});
   const activeDeployRequestIdRef = useRef(null);
+  const isSplitResizingRef = useRef(false);
+  const pendingTerminalSyncRef = useRef(false);
+  const terminalSyncRafRef = useRef(null);
 
   function disposeProjectTerminal(projectId) {
     const entry = terminalByProjectRef.current.get(projectId);
@@ -376,15 +379,24 @@ export default function ProjectManager() {
     }
 
     entry.fitAddon.fit();
+    const nextCols = entry.terminal.cols;
+    const nextRows = entry.terminal.rows;
 
     if (!entry.sessionId) {
       return;
     }
 
+    if (entry.lastSentCols === nextCols && entry.lastSentRows === nextRows) {
+      return;
+    }
+
+    entry.lastSentCols = nextCols;
+    entry.lastSentRows = nextRows;
+
     resizeGeminiTerminalSession({
       sessionId: entry.sessionId,
-      cols: entry.terminal.cols,
-      rows: entry.terminal.rows,
+      cols: nextCols,
+      rows: nextRows,
     }).catch(() => {
       // Ignore resize errors while sessions are switching or closing.
     });
@@ -434,6 +446,8 @@ export default function ProjectManager() {
       }
 
       entry.sessionId = result.sessionId;
+      entry.lastSentCols = null;
+      entry.lastSentRows = null;
       sessionByProjectRef.current.set(project.id, result.sessionId);
       projectBySessionRef.current.set(result.sessionId, project.id);
 
@@ -494,6 +508,8 @@ export default function ProjectManager() {
       sessionId: null,
       sessionPromise: null,
       inputDisposable: null,
+      lastSentCols: null,
+      lastSentRows: null,
       disposed: false,
     };
 
@@ -1081,16 +1097,35 @@ export default function ProjectManager() {
       }
 
       entry.sessionId = null;
+      entry.lastSentCols = null;
+      entry.lastSentRows = null;
       entry.terminal.writeln(`\r\n[세션 종료: ${exitCode}]`);
     });
 
     function syncTerminalSize() {
-      const activeProjectId = activeProjectIdRef.current;
-      if (!activeProjectId) {
+      if (isSplitResizingRef.current) {
+        pendingTerminalSyncRef.current = true;
         return;
       }
 
-      fitAndResizeProjectTerminal(activeProjectId);
+      if (terminalSyncRafRef.current != null) {
+        return;
+      }
+
+      terminalSyncRafRef.current = window.requestAnimationFrame(() => {
+        terminalSyncRafRef.current = null;
+        if (isSplitResizingRef.current) {
+          pendingTerminalSyncRef.current = true;
+          return;
+        }
+
+        const activeProjectId = activeProjectIdRef.current;
+        if (!activeProjectId) {
+          return;
+        }
+
+        fitAndResizeProjectTerminal(activeProjectId);
+      });
     }
 
     syncTerminalSizeRef.current = syncTerminalSize;
@@ -1104,8 +1139,15 @@ export default function ProjectManager() {
       unsubscribeExit();
       resizeObserver.disconnect();
       window.removeEventListener('resize', syncTerminalSize);
+      if (terminalSyncRafRef.current != null) {
+        window.cancelAnimationFrame(terminalSyncRafRef.current);
+        terminalSyncRafRef.current = null;
+      }
+      pendingTerminalSyncRef.current = false;
+      isSplitResizingRef.current = false;
       syncTerminalSizeRef.current = () => {};
 
+      const activeProjectId = activeProjectIdRef.current;
       const allProjectIds = new Set([
         ...sessionByProjectRef.current.keys(),
         ...terminalByProjectRef.current.keys(),
@@ -1121,6 +1163,14 @@ export default function ProjectManager() {
       activeProjectIdRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    isSplitResizingRef.current = isSplitResizing;
+    if (!isSplitResizing && pendingTerminalSyncRef.current) {
+      pendingTerminalSyncRef.current = false;
+      syncTerminalSizeRef.current();
+    }
+  }, [isSplitResizing]);
 
   useEffect(() => {
     if (!isDesktopApp()) {
@@ -1419,9 +1469,7 @@ export default function ProjectManager() {
               <div ref={terminalHostRef} className="terminal-pty-host manager-center-terminal-host manager-main-content-surface" />
 
               {!selectedProject && (
-                <div className="absolute inset-0 flex items-center justify-center text-[#95A8BA] text-center pointer-events-none">
-                  <p>프로젝트를 선택하세요.</p>
-                </div>
+                <div className="absolute inset-0 pointer-events-none" />
               )}
             </div>
           </section>
@@ -1484,9 +1532,7 @@ export default function ProjectManager() {
                   className="w-full h-full border-0 bg-[#020712]"
                 />
               ) : (
-                <div className="h-full flex items-center justify-center text-[#95A8BA] text-sm">
-                  프로젝트를 선택하세요.
-                </div>
+                <div className="h-full" />
               )}
             </div>
           </section>
@@ -1615,7 +1661,7 @@ export default function ProjectManager() {
               ))}
             </div>
 
-            <pre className="manager-log mt-3 custom-scrollbar h-[260px]">{deployLogs || '[출력 없음]'}</pre>
+            <pre className="manager-log mt-5 custom-scrollbar h-[260px]">{deployLogs || '[출력 없음]'}</pre>
 
             {deployUrl && (
               <div className="mt-2 text-xs text-[#9bc8ff] break-all">{deployUrl}</div>

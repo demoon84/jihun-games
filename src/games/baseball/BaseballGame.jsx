@@ -1,283 +1,284 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState, useRef, Suspense, useEffect } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { OrbitControls, PerspectiveCamera, Sky, Stars, Text, Float, MeshWobbleMaterial, Environment, ContactShadows } from '@react-three/drei';
+import * as THREE from 'three';
 
-// Settings
-const PITCHER_Y = 200;
-const BATTER_Y = 650;
-const STRIKE_ZONE_Y = 650;
-const STRIKE_ZONE_RADIUS = 60;
-const BALL_START_SIZE = 5;
-const BALL_END_SIZE = 30;
+// Constants
+const PITCHER_POS = new THREE.Vector3(0, 1, -20);
+const BATTER_POS = new THREE.Vector3(0, 1, 5);
+const BALL_START_POS = new THREE.Vector3(0, 1.5, -18);
+const STRIKE_ZONE_POS = new THREE.Vector3(0, 1.2, 4);
+
+// --- Components ---
+
+function BaseballField() {
+    return (
+        <group>
+            {/* Grass */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+                <circleGeometry args={[50, 64]} />
+                <meshStandardMaterial color="#2d5a27" />
+            </mesh>
+            {/* Infield Dirt */}
+            <mesh rotation={[-Math.PI / 2, 0, Math.PI / 4]} position={[0, 0.01, -5]} receiveShadow>
+                <planeGeometry args={[25, 25]} />
+                <meshStandardMaterial color="#8b5a2b" />
+            </mesh>
+            {/* Pitcher's Mound */}
+            <mesh position={[0, 0.1, -18]} receiveShadow>
+                <cylinderGeometry args={[2, 2.5, 0.3, 32]} />
+                <meshStandardMaterial color="#a67c52" />
+            </mesh>
+            {/* Home Plate */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 5]}>
+                <planeGeometry args={[1, 1]} />
+                <meshStandardMaterial color="white" />
+            </mesh>
+            {/* Foul Lines */}
+            <mesh rotation={[-Math.PI / 2, 0, Math.PI / 4]} position={[0, 0.015, 5]}>
+                <planeGeometry args={[0.1, 100]} />
+                <meshStandardMaterial color="white" opacity={0.5} transparent />
+            </mesh>
+            <mesh rotation={[-Math.PI / 2, 0, -Math.PI / 4]} position={[0, 0.015, 5]}>
+                <planeGeometry args={[0.1, 100]} />
+                <meshStandardMaterial color="white" opacity={0.5} transparent />
+            </mesh>
+            <Sky sunPosition={[100, 20, 100]} />
+            <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+            <ambientLight intensity={0.5} />
+            <directionalLight
+                position={[10, 20, 10]}
+                intensity={1.5}
+                castShadow
+                shadow-mapSize={[1024, 1024]}
+            />
+        </group>
+    );
+}
+
+function Pitcher({ isPitching }) {
+    const group = useRef();
+    useFrame((state) => {
+        if (isPitching) {
+            group.current.rotation.x = Math.sin(state.clock.elapsedTime * 10) * 0.2;
+        } else {
+            group.current.rotation.x = 0;
+        }
+    });
+
+    return (
+        <group ref={group} position={PITCHER_POS}>
+            {/* Simple Stylized Pitcher */}
+            <mesh position={[0, 1, 0]} castShadow>
+                <capsuleGeometry args={[0.4, 1, 4, 8]} />
+                <meshStandardMaterial color="#3b82f6" />
+            </mesh>
+            <mesh position={[0, 2.2, 0]} castShadow>
+                <sphereGeometry args={[0.3, 16, 16]} />
+                <meshStandardMaterial color="#fcd34d" />
+            </mesh>
+        </group>
+    );
+}
+
+function Batter({ isSwinging, swingProgress }) {
+    const batRef = useRef();
+
+    useFrame(() => {
+        if (isSwinging) {
+            // Swing animation: rotate bat from side to front
+            const angle = -Math.PI / 2 + swingProgress * Math.PI;
+            batRef.current.rotation.y = angle;
+            batRef.current.position.x = Math.sin(angle) * 1.5;
+            batRef.current.position.z = 5 + Math.cos(angle) * 1.5;
+        } else {
+            batRef.current.rotation.y = -Math.PI / 2;
+            batRef.current.position.set(1.5, 1.2, 5);
+        }
+    });
+
+    return (
+        <group position={[0, 0, 0]}>
+            {/* Simple Stylized Batter */}
+            <mesh position={[-1, 1, 5]} castShadow>
+                <capsuleGeometry args={[0.4, 1, 4, 8]} />
+                <meshStandardMaterial color="#ef4444" />
+            </mesh>
+            <mesh position={[-1, 2.2, 5]} castShadow>
+                <sphereGeometry args={[0.3, 16, 16]} />
+                <meshStandardMaterial color="#fcd34d" />
+            </mesh>
+            
+            {/* Bat */}
+            <mesh ref={batRef} position={[1.5, 1.2, 5]} rotation={[0, -Math.PI / 2, Math.PI / 4]} castShadow>
+                <cylinderGeometry args={[0.05, 0.1, 2, 8]} />
+                <meshStandardMaterial color="#92400e" />
+            </mesh>
+        </group>
+    );
+}
+
+function Ball({ active, position, onMiss }) {
+    const meshRef = useRef();
+
+    useFrame((state, delta) => {
+        if (active && meshRef.current) {
+            meshRef.current.position.copy(position);
+            meshRef.current.rotation.x += delta * 10;
+            meshRef.current.rotation.y += delta * 10;
+
+            if (position.z > 10 && active) {
+                onMiss();
+            }
+        }
+    });
+
+    if (!active) return null;
+
+    return (
+        <mesh ref={meshRef} castShadow>
+            <sphereGeometry args={[0.15, 16, 16]} />
+            <meshStandardMaterial color="white" />
+            {/* Red stitching effect could be added here */}
+        </mesh>
+    );
+}
 
 export default function BaseballGame() {
-    const canvasRef = useRef(null);
-    const requestRef = useRef(null);
-
-    // UI State
+    const [gameState, setGameState] = useState('MENU'); // MENU, PLAYING, GAMEOVER
     const [score, setScore] = useState(0);
     const [combo, setCombo] = useState(0);
     const [outs, setOuts] = useState(0);
-    const [gameState, setGameState] = useState('MENU'); // MENU, PLAYING, GAMEOVER
     const [message, setMessage] = useState({ text: '', color: '', visible: false });
 
-    // Game Logic State (Mutable)
-    const game = useRef({
-        ball: null,
-        swingActive: false,
-        swingFrame: 0,
-        isPlaying: false,
-        width: 600,
-        height: 800
+    // Internal Game State
+    const ballState = useRef({
+        active: false,
+        pos: BALL_START_POS.clone(),
+        vel: new THREE.Vector3(0, 0, 0),
+        hit: false
     });
 
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
+    const [isPitching, setIsPitching] = useState(false);
+    const [isSwinging, setIsSwinging] = useState(false);
+    const [swingProgress, setSwingProgress] = useState(0);
+    const [ballActive, setBallActive] = useState(false);
 
-        // --- Classes ---
-        class Ball {
-            constructor(w, h) {
-                this.reset(w, h);
-            }
-            reset(w, h) {
-                this.x = w / 2;
-                this.y = PITCHER_Y;
-                this.targetX = w / 2 + (Math.random() * 40 - 20);
-                this.speed = 4 + Math.random() * 6;
-                this.size = BALL_START_SIZE;
-                this.active = true;
-                this.hit = false;
-                this.missed = false;
-                this.opacity = 1;
-            }
-            update() {
-                if (!this.active) return;
-                const distToBatter = BATTER_Y - PITCHER_Y;
-                const progress = (this.y - PITCHER_Y) / distToBatter;
-                this.y += this.speed;
-                this.x += (this.targetX - game.current.width / 2) * 0.02;
-                this.size = Math.max(0.1, BALL_START_SIZE + (BALL_END_SIZE - BALL_START_SIZE) * progress);
-
-                if (this.y > BATTER_Y + 100 && !this.hit && !this.missed) {
-                    this.missed = true;
-                    handleMiss();
-                }
-                if (this.y > game.current.height + 100 || this.y < -500) {
-                    this.active = false;
-                    if (game.current.isPlaying) setTimeout(() => spawnBall(), 1000);
-                }
-            }
-            draw(ctx) {
-                if (!this.active) return;
-                const drawSize = Math.max(0.1, this.size);
-                ctx.save();
-                ctx.globalAlpha = this.opacity;
-                // Shadow
-                ctx.beginPath();
-                ctx.ellipse(this.x, this.y + 10, drawSize, Math.max(0.1, drawSize / 2), 0, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(0,0,0,0.2)';
-                ctx.fill();
-                // Ball
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, drawSize, 0, Math.PI * 2);
-                ctx.fillStyle = 'white';
-                ctx.fill();
-                ctx.strokeStyle = '#ddd';
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                // Stitching
-                if (drawSize > 2) {
-                    ctx.beginPath();
-                    ctx.arc(this.x - drawSize * 0.5, this.y, drawSize * 0.8, -0.5, 0.5);
-                    ctx.strokeStyle = 'red';
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
-                    ctx.beginPath();
-                    ctx.arc(this.x + drawSize * 0.5, this.y, drawSize * 0.8, Math.PI - 0.5, Math.PI + 0.5);
-                    ctx.stroke();
-                }
-                ctx.restore();
-            }
-        }
-
-        // --- Logic ---
-        const spawnBall = () => {
-            if (!game.current.isPlaying) return;
-            game.current.ball = new Ball(game.current.width, game.current.height);
-        };
-
-        const handleMiss = () => {
-            setOuts(o => {
-                const newOuts = o + 1;
-                if (newOuts >= 3) gameOver();
-                return newOuts;
-            });
-            setCombo(0);
-            showMessage("스트라이크!", "text-red-500");
-        };
-
-        const gameOver = () => {
-            game.current.isPlaying = false;
-            setGameState('GAMEOVER');
-        };
-
-        const drawField = () => {
-            const w = game.current.width;
-            const h = game.current.height;
-            const cx = w / 2;
-
-            ctx.fillStyle = '#92400e';
-            ctx.beginPath();
-            ctx.moveTo(cx, 150);
-            ctx.lineTo(cx + 250, 450);
-            ctx.lineTo(cx, 750);
-            ctx.lineTo(cx - 250, 450);
-            ctx.closePath();
-            ctx.fill();
-            ctx.strokeStyle = 'white';
-            ctx.lineWidth = 3;
-            ctx.stroke();
-
-            const baseSize = 25;
-            ctx.fillStyle = 'white';
-            ctx.beginPath();
-            ctx.moveTo(cx, 750);
-            ctx.lineTo(cx - baseSize, 750 - baseSize);
-            ctx.lineTo(cx - baseSize, 750 - baseSize * 2);
-            ctx.lineTo(cx + baseSize, 750 - baseSize * 2);
-            ctx.lineTo(cx + baseSize, 750 - baseSize);
-            ctx.closePath();
-            ctx.fill();
-
-            ctx.beginPath();
-            ctx.arc(cx, PITCHER_Y + 30, 40, 0, Math.PI * 2);
-            ctx.fillStyle = '#78350f';
-            ctx.fill();
-
-            ctx.beginPath();
-            ctx.arc(cx, STRIKE_ZONE_Y, STRIKE_ZONE_RADIUS, 0, Math.PI * 2);
-            ctx.strokeStyle = 'rgba(255, 255, 0, 0.3)';
-            ctx.setLineDash([10, 5]);
-            ctx.stroke();
-            ctx.setLineDash([]);
-        };
-
-        const drawCharacters = () => {
-            const cx = game.current.width / 2;
-            ctx.font = '60px serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('⚾', cx, PITCHER_Y);
-
-            ctx.save();
-            ctx.translate(cx, BATTER_Y + 50);
-            if (game.current.swingActive) {
-                const angle = (game.current.swingFrame / 10) * Math.PI - Math.PI / 4;
-                ctx.rotate(angle);
-                ctx.fillText('🏏', 40, -20);
-            } else {
-                ctx.fillText('👤', 0, 0);
-            }
-            ctx.restore();
-        };
-
-        const update = () => {
-            if (game.current.ball) game.current.ball.update();
-            if (game.current.swingActive) {
-                game.current.swingFrame++;
-                if (game.current.swingFrame > 15) game.current.swingActive = false;
-            }
-        };
-
-        const draw = () => {
-            // Resize handling basic
-            if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-                game.current.width = canvas.width;
-                game.current.height = canvas.height;
-            }
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            // Background
-            const grad = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 0, canvas.width / 2, canvas.height / 2, canvas.height);
-            grad.addColorStop(0, '#4ade80');
-            grad.addColorStop(1, '#166534');
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            drawField();
-            if (game.current.ball) game.current.ball.draw(ctx);
-            drawCharacters();
-        };
-
-        const loop = () => {
-            // Check Force Spawn
-            if (game.current.forceSpawn) {
-                game.current.forceSpawn = false;
-                game.current.ball = new Ball(game.current.width, game.current.height);
-            }
-
-            update();
-            draw();
-            requestRef.current = requestAnimationFrame(loop);
-        };
-
-        requestRef.current = requestAnimationFrame(loop);
-        return () => cancelAnimationFrame(requestRef.current);
-    }, []);
-
-    // --- Interaction Handlers ---
     const showMessage = (text, colorClass) => {
         setMessage({ text, color: colorClass, visible: true });
         setTimeout(() => setMessage(m => ({ ...m, visible: false })), 800);
     };
 
-    const handleSwing = () => {
-        if (!game.current.isPlaying || game.current.swingActive) return;
+    const spawnBall = () => {
+        if (gameState !== 'PLAYING') return;
+        setIsPitching(true);
+        
+        setTimeout(() => {
+            ballState.current.active = true;
+            ballState.current.pos.copy(BALL_START_POS);
+            ballState.current.pos.x = (Math.random() - 0.5) * 1.5; // Random horizontal
+            ballState.current.pos.y = 1.2 + (Math.random() - 0.5) * 0.5; // Random height
+            
+            const speed = 15 + Math.random() * 10;
+            ballState.current.vel.set(0, 0, speed);
+            ballState.current.hit = false;
+            setBallActive(true);
+            setIsPitching(false);
+        }, 800);
+    };
 
-        game.current.swingActive = true;
-        game.current.swingFrame = 0;
-
-        // CSS Shake effect on canvas container? handled via CSS classes usually, but here we might just skip or animate canvas
-
-        const ball = game.current.ball;
-        if (ball && !ball.hit && !ball.missed) {
-            const dist = Math.abs(ball.y - STRIKE_ZONE_Y);
-            const horizontalDist = Math.abs(ball.x - game.current.width / 2);
-
-            if (dist < 40 && horizontalDist < 50) {
-                ball.hit = true;
-
-                let hitType = "";
-                let points = 0;
-                let color = "";
-                let newCombo = combo + 1; // get latest combo value properly? 
-                // Actually relying on React state inside Event Handler without ref is stale.
-                setCombo(c => {
-                    newCombo = c + 1;
-                    return newCombo;
-                });
-
-                if (dist < 10) {
-                    hitType = "홈런!!";
-                    points = 1000 + (newCombo * 100); // Use approximate combo
-                    color = "text-yellow-400";
-                } else if (dist < 25) {
-                    hitType = "안타!";
-                    points = 500 + (newCombo * 50);
-                    color = "text-green-400";
-                } else {
-                    hitType = "파울?";
-                    points = 100;
-                    color = "text-blue-300";
-                }
-
-                setScore(s => s + points);
-                showMessage(hitType, color);
-
-                ball.speed = -15;
-                ball.targetX = (Math.random() - 0.5) * 1000;
+    const handleMiss = () => {
+        if (!ballState.current.active || ballState.current.hit) return;
+        
+        ballState.current.active = false;
+        setBallActive(false);
+        setOuts(o => {
+            const next = o + 1;
+            if (next >= 3) {
+                setGameState('GAMEOVER');
+                return next;
             }
+            return next;
+        });
+        setCombo(0);
+        showMessage("스트라이크!", "text-red-500");
+        
+        if (outs < 2) {
+            setTimeout(spawnBall, 1500);
         }
+    };
+
+    const handleSwing = () => {
+        if (gameState !== 'PLAYING' || isSwinging) return;
+
+        setIsSwinging(true);
+        let progress = 0;
+        const startTime = Date.now();
+        const duration = 300; // 300ms swing
+
+        const animateSwing = () => {
+            const now = Date.now();
+            const p = (now - startTime) / duration;
+            if (p < 1) {
+                setSwingProgress(p);
+                
+                // Hit Detection during swing
+                if (ballState.current.active && !ballState.current.hit && p > 0.4 && p < 0.6) {
+                    const dist = ballState.current.pos.distanceTo(STRIKE_ZONE_POS);
+                    // Check horizontal and vertical distance specifically
+                    const dx = Math.abs(ballState.current.pos.x - STRIKE_ZONE_POS.x);
+                    const dy = Math.abs(ballState.current.pos.y - STRIKE_ZONE_POS.y);
+                    const dz = Math.abs(ballState.current.pos.z - STRIKE_ZONE_POS.z);
+
+                    if (dz < 1.0 && dx < 0.8 && dy < 0.8) {
+                        handleHit(dx, dy);
+                    }
+                }
+                
+                requestAnimationFrame(animateSwing);
+            } else {
+                setIsSwinging(false);
+                setSwingProgress(0);
+            }
+        };
+        requestAnimationFrame(animateSwing);
+    };
+
+    const handleHit = (dx, dy) => {
+        ballState.current.hit = true;
+        const totalDist = Math.sqrt(dx*dx + dy*dy);
+        
+        let hitType = "";
+        let points = 0;
+        let color = "";
+        const currentCombo = combo + 1;
+        setCombo(currentCombo);
+
+        if (totalDist < 0.2) {
+            hitType = "홈런!!";
+            points = 1000 + (currentCombo * 100);
+            color = "text-yellow-400";
+            ballState.current.vel.set((Math.random()-0.5)*10, 15, -40);
+        } else if (totalDist < 0.5) {
+            hitType = "안타!";
+            points = 500 + (currentCombo * 50);
+            color = "text-green-400";
+            ballState.current.vel.set((Math.random()-0.5)*20, 5, -30);
+        } else {
+            hitType = "파울?";
+            points = 100;
+            color = "text-blue-300";
+            ballState.current.vel.set((Math.random()-0.5)*30, 10, -10);
+        }
+
+        setScore(s => s + points);
+        showMessage(hitType, color);
+        
+        setTimeout(() => {
+            ballState.current.active = false;
+            setBallActive(false);
+            setTimeout(spawnBall, 1500);
+        }, 2000);
     };
 
     const startGame = () => {
@@ -285,82 +286,87 @@ export default function BaseballGame() {
         setCombo(0);
         setOuts(0);
         setGameState('PLAYING');
-        game.current.isPlaying = true;
-
-        // Delay first ball
-        setTimeout(() => {
-            if (game.current.isPlaying) game.current.ball = null; // Clear old
-            // Spawn logic inside Update loop or explicit here?
-            // The loop spawns if active is false.
-            // Force spawn
-            game.current.ball = { active: false }; // Dummy to trigger spawn check? 
-            // Actually `spawnBall` creates a ball.
-            // Just set active=false on current ball if any, loop will respawn?
-            // No, loop respawns if y > limits.
-            // Manual spawn:
-            game.current.ball = null;
-            // Let's create one.
-            // We need access to Ball class or spawn function. 
-            // Refactor: We defined classes INSIDE useEffect, so we can't access them here.
-            // Solution: Use a ref "command" system or move logic outside.
-            // Quick fix: Set a flag in ref.
-            game.current.forceSpawn = true;
-        }, 100);
+        setTimeout(spawnBall, 1000);
     };
 
-    // Need to handle "Force Spawn" inside effect loop if classes are hidden
-    // OR just move classes out (Better, like ZombieGame).
-    // For now assuming we refactor classes out in next step for stability.
-
-    // Quick handle inputs
-    const handleInput = () => {
-        handleSwing();
-    };
+    // Logic Update Loop
+    useEffect(() => {
+        let frame;
+        const update = () => {
+            if (ballState.current.active) {
+                ballState.current.pos.addScaledVector(ballState.current.vel, 0.016);
+                // Gravity if hit
+                if (ballState.current.hit) {
+                    ballState.current.vel.y -= 0.5;
+                    if (ballState.current.pos.y < 0) {
+                        ballState.current.pos.y = 0;
+                        ballState.current.vel.multiplyScalar(0.5); // Bounce
+                    }
+                }
+            }
+            frame = requestAnimationFrame(update);
+        };
+        update();
+        return () => cancelAnimationFrame(frame);
+    }, []);
 
     return (
-        <div
-            data-id="baseball-container"
-            className="relative w-full h-screen bg-slate-900 overflow-hidden select-none touch-manipulation"
-            onMouseDown={handleInput}
-            onTouchStart={handleInput}
-            onKeyDown={(e) => { if (e.code === 'Space') handleInput(); }}
-            tabIndex="0"
-        >
-            <canvas data-id="baseball-canvas" ref={canvasRef} className="block w-full h-full" />
+        <div className="relative w-full h-screen bg-slate-900 overflow-hidden select-none touch-manipulation" 
+             onMouseDown={handleSwing}
+             onKeyDown={(e) => { if (e.code === 'Space') handleSwing(); }}
+             tabIndex="0">
+            
+            <Suspense fallback={<div className="text-white flex items-center justify-center h-full">Loading 3D World...</div>}>
+                <Canvas shadows dpr={[1, 2]}>
+                    <PerspectiveCamera makeDefault position={[0, 5, 12]} fov={50} />
+                    <OrbitControls 
+                        enablePan={false} 
+                        enableZoom={false} 
+                        minPolarAngle={Math.PI/4} 
+                        maxPolarAngle={Math.PI/2}
+                        target={[0, 1.5, 0]}
+                    />
+                    
+                    <BaseballField />
+                    <Pitcher isPitching={isPitching} />
+                    <Batter isSwinging={isSwinging} swingProgress={swingProgress} />
+                    <Ball active={ballActive} position={ballState.current.pos} onMiss={handleMiss} />
+                    
+                    <ContactShadows position={[0, 0, 0]} opacity={0.4} scale={20} blur={2} far={4.5} />
+                    <Environment preset="park" />
+                </Canvas>
+            </Suspense>
 
             {/* UI Overlay */}
-            <div data-id="baseball-hud" className="absolute top-5 left-5 text-white font-bold drop-shadow-lg pointer-events-none">
-                <div data-id="baseball-score" className="text-2xl">점수: {score}</div>
-                <div data-id="baseball-combo" className="text-xl text-yellow-400">콤보: {combo}</div>
-                <div data-id="baseball-outs" className="text-lg text-red-400">아웃: {outs} / 3</div>
+            <div className="absolute top-5 left-5 text-white font-bold drop-shadow-lg pointer-events-none">
+                <div className="text-2xl">점수: {score}</div>
+                <div className="text-xl text-yellow-400">콤보: {combo}</div>
+                <div className="text-lg text-red-400">아웃: {outs} / 3</div>
             </div>
 
             {/* Message Box */}
-            <div data-id="baseball-message" className={`absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none transition-opacity duration-200 z-10 ${message.visible ? 'opacity-100' : 'opacity-0'}`}>
-                <h2 data-id="baseball-message-text" className={`text-7xl font-black ${message.color} drop-shadow-[0_5px_5px_rgba(0,0,0,1)]`}>{message.text}</h2>
+            <div className={`absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none transition-opacity duration-200 z-10 ${message.visible ? 'opacity-100' : 'opacity-0'}`}>
+                <h2 className={`text-7xl font-black ${message.color} drop-shadow-[0_5px_5px_rgba(0,0,0,1)]`}>{message.text}</h2>
             </div>
 
             {/* Menus */}
             {gameState !== 'PLAYING' && (
-                <div data-id="baseball-menu" className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center text-white z-20">
-                    <h1 data-id="baseball-title" className="text-6xl mb-8 font-black text-yellow-400 italic transform -skew-x-12">마구마구갓</h1>
+                <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center text-white z-20">
+                    <h1 className="text-6xl mb-8 font-black text-yellow-400 italic transform -skew-x-12">3D 마구마구</h1>
                     {gameState === 'GAMEOVER' && (
-                        <div data-id="baseball-gameover" className="text-center mb-8 animate-pulse">
-                            <h2 data-id="baseball-gameover-title" className="text-4xl text-red-500 font-bold mb-2">GAME OVER</h2>
-                            <p data-id="baseball-gameover-score" className="text-xl">최종 점수: {score}</p>
+                        <div className="text-center mb-8 animate-pulse">
+                            <h2 className="text-4xl text-red-500 font-bold mb-2">GAME OVER</h2>
+                            <p className="text-xl">최종 점수: {score}</p>
                         </div>
                     )}
-                    <p data-id="baseball-instructions" className="text-xl mb-12 text-center px-8 opacity-80">공이 노란색 원 안에 들어왔을 때<br />화면을 클릭하여 배트를 휘두르세요!</p>
+                    <p className="text-xl mb-12 text-center px-8 opacity-80">투수가 던지는 공을 타이밍에 맞춰<br />클릭하여 배트를 휘두르세요!</p>
 
-                    <div data-id="baseball-menu-buttons" className="flex gap-4">
-                        <button
-                            data-id="baseball-start-btn"
-                            onClick={(e) => { e.stopPropagation(); startGame(); }}
-                            className="bg-blue-600 hover:bg-blue-500 text-white px-12 py-4 rounded-full text-2xl font-bold transition-transform active:scale-95 shadow-[0_0_20px_rgba(37,99,235,0.5)]"
-                        >
-                            {gameState === 'MENU' ? '게임 시작' : '다시 시작'}
-                        </button>
-                    </div>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); startGame(); }}
+                        className="bg-blue-600 hover:bg-blue-500 text-white px-12 py-4 rounded-full text-2xl font-bold transition-transform active:scale-95 shadow-[0_0_20px_rgba(37,99,235,0.5)]"
+                    >
+                        {gameState === 'MENU' ? '게임 시작' : '다시 시작'}
+                    </button>
                 </div>
             )}
         </div>

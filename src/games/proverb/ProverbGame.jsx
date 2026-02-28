@@ -157,8 +157,7 @@ export default function ProverbGame() {
                 {/* --- Start Screen --- */}
                 {screen === 'start' && (
                     <div data-id="proverb-start" className="text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <h1 data-id="proverb-start-title" className="text-6xl font-black text-indigo-600 mb-2">⚡속담 파워⚡</h1>
-                        <p data-id="proverb-start-subtitle" className="text-xl text-indigo-400 font-bold mb-8 italic tracking-widest uppercase">Infinite Challenge</p>
+                        <h1 data-id="proverb-start-title" className="text-6xl font-black text-indigo-600 mb-8">⚡속담 파워⚡</h1>
 
                         <div data-id="proverb-mode-buttons" className="space-y-4 mb-6">
                             <button data-id="proverb-subjective-btn" onClick={() => startGame('subjective')} className="w-full bg-blue-500 hover:bg-blue-600 text-white text-2xl font-bold py-4 rounded-2xl border-b-4 border-blue-700 active:border-b-0 active:translate-y-1 transition-all">

@@ -2,10 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Home from '../../pages/Home';
 import ProjectManager from '../../pages/ProjectManager';
-import DefenseGame from '../../games/defense/DefenseGame';
-import ZombieGame from '../../games/zombie/ZombieGame';
-import BaseballGame from '../../games/baseball/BaseballGame';
-import ProverbGame from '../../games/proverb/ProverbGame';
+import { DynamicGameRoute, dynamicGameRouteDefs } from '../shared/dynamicGameRoutes';
 
 export default function StudioApp() {
   return (
@@ -14,10 +11,13 @@ export default function StudioApp() {
         <Route path="/" element={<ProjectManager />} />
         <Route path="/manager" element={<ProjectManager />} />
         <Route path="/games" element={<Home />} />
-        <Route path="/defense" element={<DefenseGame />} />
-        <Route path="/zombie" element={<ZombieGame />} />
-        <Route path="/baseball" element={<BaseballGame />} />
-        <Route path="/proverb" element={<ProverbGame />} />
+        {dynamicGameRouteDefs.map((gameRoute) => (
+          <Route
+            key={gameRoute.path}
+            path={gameRoute.path}
+            element={<DynamicGameRoute routePath={gameRoute.path} loadEntry={gameRoute.loadEntry} />}
+          />
+        ))}
         <Route path="*" element={<ProjectManager />} />
       </Routes>
     </Router>
