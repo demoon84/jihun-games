@@ -335,17 +335,6 @@ export default function BaseballGame() {
                 <div data-id="baseball-outs" className="text-lg text-red-400">아웃: {outs} / 3</div>
             </div>
 
-            {/* Home Button */}
-            {gameState === 'PLAYING' && (
-                <button
-                    data-id="baseball-home-btn"
-                    onClick={(e) => { e.stopPropagation(); window.location.href = '/'; }}
-                    className="absolute bottom-5 right-5 bg-black/50 hover:bg-black/80 w-12 h-12 rounded-full flex items-center justify-center text-2xl border-2 border-white/20 transition-colors z-10"
-                >
-                    🏠
-                </button>
-            )}
-
             {/* Message Box */}
             <div data-id="baseball-message" className={`absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none transition-opacity duration-200 z-10 ${message.visible ? 'opacity-100' : 'opacity-0'}`}>
                 <h2 data-id="baseball-message-text" className={`text-7xl font-black ${message.color} drop-shadow-[0_5px_5px_rgba(0,0,0,1)]`}>{message.text}</h2>
@@ -370,13 +359,6 @@ export default function BaseballGame() {
                             className="bg-blue-600 hover:bg-blue-500 text-white px-12 py-4 rounded-full text-2xl font-bold transition-transform active:scale-95 shadow-[0_0_20px_rgba(37,99,235,0.5)]"
                         >
                             {gameState === 'MENU' ? '게임 시작' : '다시 시작'}
-                        </button>
-                        <button
-                            data-id="baseball-exit-btn"
-                            onClick={(e) => { e.stopPropagation(); window.location.href = '/'; }}
-                            className="bg-slate-700 hover:bg-slate-600 text-white px-8 py-4 rounded-full text-xl font-bold transition-transform active:scale-95"
-                        >
-                            나가기
                         </button>
                     </div>
                 </div>
