@@ -329,7 +329,7 @@ export default function ProjectManager() {
   const [deployUrl, setDeployUrl] = useState('');
   const [deployFinishedOk, setDeployFinishedOk] = useState(null);
   const [browserRefreshTick, setBrowserRefreshTick] = useState(0);
-  const [splitRatio, setSplitRatio] = useState(0.4);
+  const [splitRatio, setSplitRatio] = useState(0.3);
   const [isSplitResizing, setIsSplitResizing] = useState(false);
   const [isMenuExpanded, setIsMenuExpanded] = useState(false);
   const [workspaceRootHint, setWorkspaceRootHint] = useState(null);

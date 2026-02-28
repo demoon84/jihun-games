@@ -220,6 +220,28 @@ const BlackEaglesIcon = ({ size, className }) => (
   </svg>
 );
 
+const StaraxBomberIcon = ({ size, className }) => (
+  <svg viewBox="0 0 100 100" width={size} height={size} className={`${className} drop-shadow-xl`} overflow="visible">
+    <rect x="15" y="38" width="70" height="28" fill="currentColor" rx="6" />
+    <rect x="15" y="38" width="70" height="28" fill="black" opacity="0.2" rx="6" />
+    <rect x="68" y="42" width="14" height="12" fill="#0ea5e9" rx="2" />
+    <rect x="48" y="42" width="16" height="12" fill="#0ea5e9" rx="1" />
+    <rect x="24" y="42" width="16" height="12" fill="#0ea5e9" rx="1" />
+    <rect x="15" y="58" width="70" height="4" fill="black" opacity="0.1" />
+    <circle cx="30" cy="66" r="6" fill="#1e293b" />
+    <circle cx="70" cy="66" r="6" fill="#1e293b" />
+    <circle cx="30" cy="66" r="3" fill="#94a3b8" />
+    <circle cx="70" cy="66" r="3" fill="#94a3b8" />
+    <path d="M 45 40 L 15 25 L 15 55 L 45 42 Z" fill="currentColor" />
+    <path d="M 45 40 L 15 25 L 15 55 L 45 42 Z" fill="black" opacity="0.3" />
+    <path d="M 15 38 L 2 30 L 2 46 L 15 46 Z" fill="currentColor" />
+    <rect x="35" y="65" width="30" height="8" fill="#334155" rx="2" />
+    <circle cx="40" cy="73" r="3" fill="#ef4444" className="animate-pulse" />
+    <circle cx="50" cy="73" r="3" fill="#ef4444" className="animate-pulse" />
+    <circle cx="60" cy="73" r="3" fill="#ef4444" className="animate-pulse" />
+  </svg>
+);
+
 const VEHICLES = [
   { id: 'fighter', name: '전투기', Icon: FighterIcon, unlockScore: 0 },
   { id: 'drone', name: '드론', Icon: DroneIcon, unlockScore: 0 },
@@ -227,6 +249,7 @@ const VEHICLES = [
   { id: 'heli', name: '헬기', Icon: HeliIcon, unlockScore: 0 },
   { id: 'apache', name: '아파치', Icon: ApacheIcon, unlockScore: 20 }, 
   { id: 'black_eagles', name: '블랙이글스', Icon: BlackEaglesIcon, isSpecial: true, unlockScore: 300 }, 
+  { id: 'starax_bomber', name: '스타랙스 폭격기', Icon: StaraxBomberIcon, unlockScore: 1500 }, 
 ];
 
 const INITIAL_LEADERBOARD = [
@@ -413,12 +436,13 @@ export default function App() {
     showAlert(giftBuff === 'none' ? `[${targetUser.name}]님의 선물을 회수했습니다.` : `[${targetUser.name}]님에게 선물이 배송되었습니다!`);
   };
 
-  const handleDeleteRanking = () => {
-    if (!deleteTarget) return showAlert("삭제할 대상을 선택해주세요.");
-    const targetUser = leaderboard.find(l => l.id.toString() === deleteTarget.toString());
+  const handleDeleteRanking = (targetId) => {
+    const idToUse = (typeof targetId === 'string' || typeof targetId === 'number') ? targetId : deleteTarget;
+    if (!idToUse) return showAlert("삭제할 대상을 선택해주세요.");
+    const targetUser = leaderboard.find(l => l.id.toString() === idToUse.toString());
     if(!targetUser) return;
     showConfirm(`정말로 [${targetUser.name}]님의 기록을 삭제하시겠습니까?`, () => {
-      setLeaderboard(prev => prev.filter(user => user.id.toString() !== deleteTarget.toString()));
+      setLeaderboard(prev => prev.filter(user => user.id.toString() !== idToUse.toString()));
       showAlert(`[${targetUser.name}]님의 기록이 완전히 삭제되었습니다.`);
       setDeleteTarget('');
     });
@@ -474,6 +498,12 @@ export default function App() {
         bCount = selectedColor === 'cyber' ? 4 : 3; 
         bConfig.duration = 30000;
         bConfig.name = '독수리 부스터';
+      } else if (selectedVehicle === 'starax_bomber') {
+        bCount = 0;
+        mCount = 5;
+        bConfig.duration = 100000;
+        bConfig.theme = 'from-cyan-500 to-blue-700 border-cyan-300';
+        bConfig.name = '폭격 시스템';
       } else if (selectedVehicle === 'apache') {
         mCount = 2;
       } else if (selectedColor === 'cyber') {
@@ -486,8 +516,17 @@ export default function App() {
     setBoostersCount(bCount);
     setMissilesCount(mCount);
     boosterConfigRef.current = bConfig;
-    setIsAutoPilot(false);
-    setAutoPilotTimeLeft(0);
+    
+    const isStarax = selectedVehicle === 'starax_bomber' && effectiveBuff === 'none';
+    if (isStarax) {
+      setIsAutoPilot(true);
+      boosterEndTime.current = Date.now() + 100000; 
+      setAutoPilotTimeLeft(100);
+      eventMsgRef.current = { text: '폭격 시스템 가동! (100초)', color: 'text-2xl text-cyan-400 font-black', expiry: Date.now() + 3000 };
+    } else {
+      setIsAutoPilot(false);
+      setAutoPilotTimeLeft(0);
+    }
     setGameState('takeoff'); 
   }, [gameSize, selectedVehicle, selectedColor, effectiveBuff, currentPlaneSize]);
 
@@ -1044,7 +1083,14 @@ export default function App() {
               {leaderboard.map((e, i) => (
                 <div key={i} className="flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/5 text-slate-300">
                   <div className="flex items-center gap-3"><span className="w-6 text-center font-black">{i+1}</span><div className="w-10 h-10 flex items-center justify-center bg-black/30 rounded-lg">{renderVehicle(32, '', e.vehicle)}</div><span className="text-sm truncate max-w-[100px]">{e.name}</span></div>
-                  <div className="font-black text-lg">{e.score}</div>
+                  <div className="flex items-center gap-3">
+                    <div className="font-black text-lg">{e.score}</div>
+                    {isAdmin && (
+                      <button onClick={() => handleDeleteRanking(e.id)} className="p-1 text-slate-500 hover:text-rose-500 transition-colors cursor-pointer" title="기록 삭제">
+                        <Trash2 size={18} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1079,6 +1125,31 @@ export default function App() {
                     <input type="range" min="4" max="15" step="0.5" value={adminJumpStrength} onChange={(e)=>setAdminJumpStrength(parseFloat(e.target.value))} className="w-full accent-purple-500 cursor-pointer" />
                   </div>
                   <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-700"><span className="text-sm font-bold text-white">모든 기체 해금</span><button onClick={()=>setAdminUnlockAll(!adminUnlockAll)} className={`w-12 h-6 rounded-full relative cursor-pointer ${adminUnlockAll ? 'bg-amber-500' : 'bg-slate-600'}`}><div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${adminUnlockAll ? 'translate-x-6' : ''}`} /></button></div>
+                  <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                    <div className="flex items-center justify-between mb-3"><span className="text-sm font-bold text-white">기록 삭제</span></div>
+                    <div className="flex gap-2">
+                      <select value={deleteTarget} onChange={(e)=>setDeleteTarget(e.target.value)} className="flex-1 bg-slate-900 border border-slate-600 rounded-lg p-2 text-white text-sm outline-none focus:border-rose-500">
+                        <option value="">대상 선택</option>
+                        {leaderboard.map(l => <option key={l.id} value={l.id}>{l.name} ({l.score}점)</option>)}
+                      </select>
+                      <button onClick={() => handleDeleteRanking()} className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg cursor-pointer flex items-center gap-1"><Trash2 size={16}/> 삭제</button>
+                    </div>
+                  </div>
+                  <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                    <div className="flex items-center justify-between mb-3"><span className="text-sm font-bold text-white">선물 지급 (버프)</span></div>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2">
+                        <select value={giftTarget} onChange={(e)=>setGiftTarget(e.target.value)} className="flex-1 bg-slate-900 border border-slate-600 rounded-lg p-2 text-white text-sm outline-none">
+                          <option value="">대상 선택</option>
+                          {leaderboard.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                        </select>
+                        <select value={giftBuff} onChange={(e)=>setGiftBuff(e.target.value)} className="flex-[1.2] bg-slate-900 border border-slate-600 rounded-lg p-2 text-white text-sm outline-none">
+                          {SECRET_BUFFS.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                        </select>
+                      </div>
+                      <button onClick={handleGiveGift} className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg cursor-pointer flex items-center justify-center gap-2"><Gift size={16}/> 지급/회수</button>
+                    </div>
+                  </div>
                 </div>
                 <button onClick={()=>setShowAdminModal(false)} className="w-full mt-6 py-4 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition-colors cursor-pointer">닫기 및 적용</button>
               </div>
