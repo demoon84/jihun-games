@@ -1043,13 +1043,6 @@ async function deployProjectToVercel(event, { projectPath, routePath, timeoutMs,
   }
 
   const deployRoutePath = normalizeDeployRoutePath(routePath) || deriveDeployRouteFromRelativeProjectPath(relativeProjectPath);
-  if (!deployRoutePath) {
-    return toFailureResult(
-      'git-root',
-      rootResult,
-      '게임 배포 경로를 확인하지 못했습니다. 프로젝트 routePath를 확인해주세요.',
-    );
-  }
 
   const remoteResult = await runCommand(
     'git-remote',
@@ -1243,9 +1236,9 @@ async function deployProjectToVercel(event, { projectPath, routePath, timeoutMs,
 
   const vercelResult = await runCommand(
     'vercel-deploy',
-    'Vercel 프로덕션 배포(게임 화면)',
+    'Vercel 프로덕션 배포',
     vercelBinary(),
-    ['--prod', '--yes', '--build-env', `VITE_DEPLOY_GAME_PATH=${deployRoutePath}`],
+    ['--prod', '--yes'],
     gitRoot,
     safeTimeout,
   );
