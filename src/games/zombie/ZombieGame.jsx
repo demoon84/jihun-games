@@ -516,17 +516,6 @@ export default function ZombieGame() {
         <div data-id="zombie-container" className="relative w-full h-screen bg-black overflow-hidden font-sans select-none touch-none">
             <canvas data-id="zombie-canvas" ref={canvasRef} className="block w-full h-full" />
 
-            {/* Home Button */}
-            {isRunning && !isGameOver && (
-                <button
-                    data-id="zombie-home-btn"
-                    onClick={() => window.location.href = '/'}
-                    className="bg-black/50 hover:bg-black/80 w-12 h-12 rounded-full flex items-center justify-center text-xl border border-white/20 transition-colors fixed bottom-4 right-4 z-10"
-                >
-                    🏠
-                </button>
-            )}
-
             {/* UI Layer */}
             {isRunning && !isGameOver && (
                 <div data-id="zombie-hud" className="absolute top-0 left-0 w-full p-4 flex justify-between items-start text-white pointer-events-none">
@@ -551,7 +540,6 @@ export default function ZombieGame() {
                     <p className="text-gray-400 mb-8 text-center px-4">화면을 터치/클릭하여 리더를 이동하세요<br />자동으로 좀비를 공격합니다!</p>
                     <div data-id="zombie-start-buttons" className="flex flex-col sm:flex-row gap-4 w-full px-10 max-w-lg">
                         <button data-id="zombie-play-btn" onClick={handleStartClick} className="flex-1 py-5 bg-green-600 hover:bg-green-500 text-white text-2xl font-bold rounded-3xl transition-all active:scale-95 shadow-xl">방어 시작</button>
-                        <button data-id="zombie-exit-btn" onClick={() => window.location.href = '/'} className="flex-1 py-5 bg-slate-700 hover:bg-slate-600 text-white text-2xl font-bold rounded-3xl transition-all active:scale-95 shadow-xl">나가기</button>
                     </div>
                 </div>
             )}
@@ -563,7 +551,6 @@ export default function ZombieGame() {
                     <p data-id="zombie-gameover-stats" className="text-white text-2xl mb-6 font-light">{finalStats}</p>
                     <div data-id="zombie-gameover-buttons" className="flex gap-4 w-full px-10 max-w-lg">
                         <button data-id="zombie-restart-btn" onClick={handleStartClick} className="flex-1 py-4 bg-zinc-800 hover:bg-zinc-700 text-white text-xl font-bold rounded-2xl transition-all">재시작</button>
-                        <button data-id="zombie-exit-btn" onClick={() => window.location.href = '/'} className="flex-1 py-4 bg-blue-700 hover:bg-blue-600 text-white text-xl font-bold rounded-2xl transition-all">나가기</button>
                     </div>
                 </div>
             )}
